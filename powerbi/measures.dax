@@ -1,0 +1,51 @@
+// Paste each measure into Power BI Desktop: Modeling → New measure (on the Issues table).
+// Tables come from output/jira_data.xlsx: Issues, Worklogs, People, Buckets, StatusMap, StatusChanges, TimeInStatus.
+// Relationships: StatusChanges[Key] -> Issues[Key], TimeInStatus[Key] -> Issues[Key] (many-to-one).
+
+Tickets = COUNTROWS ( Issues )
+
+Open Tickets = CALCULATE ( [Tickets], Issues[Bucket] <> "Done" )
+
+Done Tickets = CALCULATE ( [Tickets], Issues[Bucket] = "Done" )
+
+In Development = CALCULATE ( [Tickets], Issues[Bucket] = "In Development" )
+
+In Testing = CALCULATE ( [Tickets], Issues[Bucket] = "In Testing" )
+
+In Refinement = CALCULATE ( [Tickets], Issues[Bucket] = "In Refinement" )
+
+% Done = DIVIDE ( [Done Tickets], [Tickets] )
+
+Story Points = SUM ( Issues[StoryPoints] )
+
+Story Points Done = CALCULATE ( [Story Points], Issues[Bucket] = "Done" )
+
+Story Points Open = CALCULATE ( [Story Points], Issues[Bucket] <> "Done" )
+
+% Points Done = DIVIDE ( [Story Points Done], [Story Points] )
+
+Resources = CALCULATE ( DISTINCTCOUNT ( Issues[Assignee] ), Issues[Assignee] <> "Unassigned" )
+
+Unassigned Open = CALCULATE ( [Open Tickets], Issues[Assignee] = "Unassigned" )
+
+Hours Logged = SUM ( Worklogs[Hours] )
+
+Avg Age Open (days) = CALCULATE ( AVERAGE ( Issues[AgeDays] ), Issues[Bucket] <> "Done" )
+
+Last Refresh = "Data as of " & LOOKUPVALUE ( RefreshInfo[Value], RefreshInfo[Item], "refreshed_at" )
+
+// ---- Productivity (per person: put Issues[ClosedBy] on rows) ----
+
+Tickets Closed = CALCULATE ( [Tickets], Issues[ClosedBy] <> BLANK (), Issues[ClosedBy] <> "" )
+
+Points Delivered = CALCULATE ( [Story Points], Issues[ClosedBy] <> BLANK (), Issues[ClosedBy] <> "" )
+
+Avg Cycle Days = AVERAGE ( Issues[CycleDays] )
+
+Avg Lead Days = AVERAGE ( Issues[LeadDays] )
+
+Velocity per Sprint = AVERAGEX ( VALUES ( Issues[Sprint] ), [Points Delivered] )
+
+Sent Back From Testing = CALCULATE ( COUNTROWS ( StatusChanges ), StatusChanges[BackwardMove] = TRUE () )
+
+Avg Days In Status = AVERAGE ( TimeInStatus[Days] )
