@@ -258,6 +258,29 @@ class Handler(BaseHTTPRequestHandler):
             source = {"file": "Confluence: %s" % (page["title"] or "page"), "source_url": page["url"],
                       "page_version": page.get("version")}
             return self._send(200, {"ok": True, "rtm": store_prd(body.get("service"), parsed, source)})
+        if path == "/api/rtm/import":
+            # A hand-made traceability matrix: its story links become confirmed links, its verdicts and notes the
+            # assessment of each requirement.
+            rtm, service = load_rtm(), body.get("service") or ""
+            doc = rtm.get(service)
+            if not doc:
+                return self._send(200, {"ok": False, "error": "Add this service's PRD first, then import its traceability matrix."})
+            try:
+                found = prd.read_rtm(body.get("filename", ""), base64.b64decode(body.get("data_b64") or ""),
+                                     [r["id"] for r in doc["requirements"]])
+            except (ValueError, KeyError, zipfile.BadZipFile) as e:
+                return self._send(200, {"ok": False, "error": str(e) or "That file couldn't be read."})
+            links, rejected, assess = doc.setdefault("links", {}), doc.setdefault("rejected", {}), doc.setdefault("assess", {})
+            for rid, row in found["rows"].items():
+                if row["keys"]:
+                    links[rid] = row["keys"]
+                    rejected[rid] = [k for k in rejected.get(rid, []) if k not in row["keys"]]
+                if row["assessment"] or row["note"]:
+                    assess[rid] = {"status": row["assessment"], "note": row["note"]}
+            doc["rtm_file"] = "%s (sheet %s) · imported %s" % (body.get("filename", ""), found["sheet"], time.strftime("%Y-%m-%d %H:%M"))
+            save_rtm(rtm)
+            return self._send(200, {"ok": True, "rtm": doc, "sheet": found["sheet"], "matched": len(found["rows"]),
+                                    "unknown": found["unknown"], "not_in_file": found["not_in_file"]})
         if path == "/api/rtm/save":
             rtm = load_rtm()
             if body.get("delete"):

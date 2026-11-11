@@ -9,7 +9,8 @@ import xml.etree.ElementTree as ET
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 # A requirement id at the start of a line / cell: REQ-12, FR-1.2, NFR 3, US-04, BR12, R1.1, 3.2.1 (numbered clause)
-ID_RE = re.compile(r"^\s*\[?((?:REQ|FR|NFR|BR|UR|SR|US|UC|AC|R)[-_ .]?\d+(?:\.\d+)*|\d+(?:\.\d+){1,3})\]?[\s:.)\-–]+", re.I)
+ID_RE = re.compile(r"^\s*\[?((?:REQ|FR|NFR|BR|UR|SR|US|UC|AC|R)[-_ .]?\d+(?:\.\d+)*|"
+                   r"[A-Z]{2,6}(?:[-_][A-Z]{2,6}){1,2}[-_]?\d+(?:\.\d+)*|\d+(?:\.\d+){1,3})\]?[\s:.)\-–]+")
 # Words that make a sentence read like a requirement.
 REQ_WORDS = re.compile(r"\b(shall|must|should|will be able to|needs? to|is required to|as an? .+?,? i want|so that|"
                        r"the system|the user can|users? can|allow(s)? (the )?users?|support(s)?|provide(s)?|enable(s)?)\b", re.I)
@@ -17,7 +18,7 @@ REQ_HEADINGS = re.compile(r"requirement|feature|user stor|scope|acceptance|funct
 # Sections that describe the product rather than require something: only explicit ids count there.
 CONTEXT_HEADINGS = re.compile(r"overview|background|introduction|goals?|objectives?|success metrics?|kpis?|summary|"
                               r"problem|personas?|assumptions?|risks?|dependencies|timeline|milestones?", re.I)
-SKIP_HEADINGS = re.compile(r"out of scope|non[- ]goals?|appendix|glossary|revision|change log|references?|open questions?", re.I)
+SKIP_HEADINGS = re.compile(r"out of scope|non[- ]goals?|appendix|glossary|revision|change log|references?|open questions?|open items?|decisions? required", re.I)
 
 
 # ---------- reading the file into blocks: (kind, level, text) / ("row", cells) ----------
@@ -93,6 +94,13 @@ def blocks_from_pdf(data):
         raise ValueError("PDF support isn't installed yet. Close the app and start it again (it installs it), "
                          "or upload the PRD as Word (.docx) instead.")
     reader = PdfReader(io.BytesIO(data))
+    try:  # Layout mode keeps text in reading order, so two-column requirement tables can be read row by row.
+        layout = "\n".join((page.extract_text(extraction_mode="layout") or "") for page in reader.pages)
+        blocks = blocks_from_id_tables(layout)
+        if blocks:
+            return blocks
+    except Exception:
+        pass
     text = "\n".join((page.extract_text() or "") for page in reader.pages)
     # PDF text often wraps sentences across lines: join lines that don't look like a new item or heading.
     lines, merged = text.splitlines(), []
@@ -203,6 +211,87 @@ def blocks_from_confluence(storage):
     return reader.out
 
 
+# A requirement table in a PDF: an "ID" column (ids often wrapped over 2-3 lines, e.g. "CIS-" / "ROM-01" or
+# "NFR" / "AVAIL" / "001") next to the requirement, whose first line is a title when the column says
+# "Requirement + Explanation".
+TABLE_HEAD = re.compile(r"^\s{0,4}ID\s{2,}(\S.*)$")
+ROW = re.compile(r"^\s{0,4}(\S+(?: \S+)*?)(?:\s{2,}(\S.*))?$")
+HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z][^.!?:;]{1,70})$")
+
+
+def blocks_from_id_tables(layout):
+    lines = layout.splitlines()
+    out, rows = [], 0
+    in_table, titled = False, False
+    cur = None          # the row being read: {"frags": [...], "right": [...]}
+    pending = []        # narrative lines between tables
+
+    def flush_text():
+        if pending:
+            out.extend(b for b in blocks_from_text("\n".join(pending), markdown=False) if b[0] == "heading")
+            pending.clear()
+
+    def finish():
+        nonlocal cur, rows
+        if cur and cur["right"]:
+            rid = _join_id(cur["frags"])
+            right = [r for r in cur["right"] if r]
+            title = right[0] if titled and len(right) > 1 else ""
+            text = re.sub(r"\s+", " ", " ".join(right[1:] if title else right)).strip()
+            out.append(("req", 0, {"id": rid, "title": _clean(title), "text": _clean(text)}))
+            rows += 1
+        cur = None
+
+    for raw in lines:
+        line = raw.rstrip()
+        if not line.strip():
+            continue
+        head = TABLE_HEAD.match(line)
+        if head:
+            finish(); flush_text()
+            in_table, titled = True, bool(re.search(r"explanation|description|detail|rationale", head.group(1), re.I))
+            continue
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        h = HEADING.match(stripped)
+        if h and indent <= 4 and len(h.group(2).split()) <= 8:
+            finish(); flush_text()
+            out.append(("heading", h.group(1).count(".") + 2, h.group(2).strip()))
+            continue
+        if in_table:
+            m = ROW.match(line) if indent <= 4 else None
+            frag = m.group(1) if m else ""
+            if m and _id_fragment(frag):
+                complete = cur is not None and any(re.search(r"\d", f) for f in cur["frags"])
+                if cur is None or complete:
+                    finish()
+                    cur = {"frags": [], "right": []}
+                cur["frags"].append(frag)
+                cur["right"].append((m.group(2) or "").strip())
+                continue
+            if cur is not None and indent > 4:
+                cur["right"].append(stripped)  # continuation of the requirement text
+                continue
+            finish()
+            in_table = False   # narrative text: the table has ended
+        pending.append(stripped)
+    finish(); flush_text()
+    return out if rows >= 5 else []
+
+
+def _id_fragment(frag):
+    """A piece of a requirement id: CIS- / ROM-01 / CIS-OA- / 09 / NFR / AVAIL / SCALE 001 / AC / 001."""
+    return len(frag) <= 16 and bool(re.fullmatch(r"(?:[A-Z]{2,8}-?)(?:[ -]?[A-Z]{2,8}-?)*(?:[ -]?\d{1,4}(?:\.\d+)*)?|\d{1,4}(?:\.\d+)*|[A-Z]{2,8}-\d{1,4}", frag))
+
+
+def _join_id(frags):
+    rid = ""
+    for f in frags:
+        f = f.strip()
+        rid += f if not rid or rid.endswith("-") else "-" + f
+    return re.sub(r"[ _]+", "-", rid).upper()
+
+
 def read_blocks(filename, data):
     name = (filename or "").lower()
     if name.endswith(".docx"):
@@ -260,7 +349,13 @@ def extract(blocks):
     in_req_section = False
     skipping = False
     table = []
+    section = ""         # top-level section, to tell functional from non-functional / acceptance criteria
     for kind, level, text in blocks:
+        if kind == "req":
+            if not skipping:
+                reqs.append({"id": text["id"], "title": text["title"], "text": text["text"] or text["title"], "feature": feature,
+                             "priority": _priority(text["text"]), "source": "table", "kind": _kind(text["id"], section)})
+            continue
         if kind == "row":
             table.append(text); continue
         if kind == "endtable":
@@ -270,6 +365,8 @@ def extract(blocks):
         if kind == "heading":
             path = {k: v for k, v in path.items() if k < level}
             path[level] = text
+            if level <= 2:
+                section = text
             skipping = bool(SKIP_HEADINGS.search(text))
             context = bool(CONTEXT_HEADINGS.search(text))
             # The document title ("… Requirements Document") says nothing about a section, so ignore level 1
@@ -291,7 +388,8 @@ def extract(blocks):
         if has_id or (kind == "item" and (in_req_section or looks_like)) or (kind == "para" and in_req_section and looks_like):
             rid = m.group(1).upper().replace(" ", "-").replace("_", "-") if m else ""
             body = text[m.end():].strip() if m else text
-            reqs.append({"id": rid, "text": body, "feature": feature, "priority": _priority(body), "source": kind})
+            reqs.append({"id": rid, "text": body, "feature": feature, "priority": _priority(body), "source": kind,
+                         "kind": _kind(rid, section)})
     # De-duplicate and number anything without an id.
     seen, out, n = set(), [], 0
     for r in reqs:
@@ -312,6 +410,15 @@ def extract(blocks):
             r["id"] = "%s-%d" % (base, k); k += 1
         ids.add(r["id"])
     return {"features": features, "requirements": out}
+
+
+def _kind(rid, section):
+    """FR (functional), NFR (non-functional) or AC (acceptance criterion)."""
+    if rid.upper().startswith("NFR") or re.search(r"non[- ]?functional|quality attribute", section, re.I):
+        return "NFR"
+    if re.match(r"AC\b|AC-", rid.upper()) or re.search(r"acceptance", section, re.I):
+        return "AC"
+    return "FR"
 
 
 def _priority(text):
@@ -335,3 +442,70 @@ def _checked(result):
                          "tables, numbered ids (REQ-1, FR-2.1…), and bullet points under headings like "
                          "'Requirements' or 'Features'. You can also add them by hand.")
     return result
+
+
+# ---------- importing a hand-made traceability matrix (Excel / CSV) ----------
+KEY_RE = re.compile(r"(?<![A-Za-z0-9-])([A-Z][A-Z0-9]{1,9}-\d+)(?![\w-])")
+ASSESSMENTS = [("Out of scope", r"de-?scop|out of scope|not applicable|\bn/?a\b"), ("External dependency", r"external|dependenc"),
+               ("Drift", r"drift"), ("Gap", r"gap|zero coverage|not covered|missing|no story"),
+               ("Partially covered", r"partial"), ("Fully covered", r"fully|covered|complete|done|yes")]
+
+
+def assessment_of(text):
+    text = (text or "").strip()
+    for name, pattern in ASSESSMENTS:
+        if re.search(pattern, text, re.I):
+            return name
+    return ""
+
+
+def _sheets(filename, data):
+    """[(sheet name, rows)] from .xlsx or .csv."""
+    name = (filename or "").lower()
+    if name.endswith((".xlsx", ".xlsm")):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        return [(ws.title, [["" if c is None else str(c) for c in row] for row in ws.iter_rows(values_only=True)]) for ws in wb.worksheets]
+    if name.endswith(".csv"):
+        import csv
+        return [("CSV", list(csv.reader(io.StringIO(data.decode("utf-8-sig", errors="replace")))))]
+    raise ValueError("Please import the traceability matrix as Excel (.xlsx) or CSV.")
+
+
+def read_rtm(filename, data, known_ids):
+    """Finds the sheet with a requirement-id column and a Jira-ticket column and returns
+    {id: {"keys": [...], "assessment": "...", "note": "..."}} plus what couldn't be matched."""
+    known = {k.upper(): k for k in known_ids}
+    best = None
+    for title, rows in _sheets(filename, data):
+        for h, head in enumerate(rows[:6]):
+            low = [c.lower().strip() for c in head]
+            find = lambda pat, skip=(): next((n for n, c in enumerate(low) if n not in skip and re.search(pat, c)), None)
+            id_col = find(r"req.*\bid\b|requirement id|^id$|^req(uirement)? ?#|^ref")
+            if id_col is None:
+                continue
+            keys_col = find(r"jira|stor(y|ies)|ticket|issue", (id_col,))
+            if keys_col is None:
+                continue
+            status_col = find(r"coverage|status|assessment|verdict", (id_col, keys_col))
+            note_col = find(r"gap|drift|comment|note|remark|analysis", (id_col, keys_col, status_col))
+            found = {}
+            for row in rows[h + 1:]:
+                cell = lambda n: row[n].strip() if n is not None and n < len(row) else ""
+                rid = re.sub(r"\s+", "-", cell(id_col).upper())
+                if not rid:
+                    continue
+                keys = list(dict.fromkeys(KEY_RE.findall(cell(keys_col))))
+                found[rid] = {"keys": keys, "assessment": assessment_of(cell(status_col)), "note": cell(note_col)}
+            hits = sum(1 for r in found if r in known)
+            # Prefer the sheet that also carries a coverage verdict and gap notes (the main RTM sheet).
+            score = hits + (5 if status_col is not None else 0) + (2 if note_col is not None else 0)
+            if hits and (best is None or score > best[0]):
+                best = (score, title, found)
+    if not best:
+        raise ValueError("Couldn't find a traceability sheet whose requirement ids match this PRD. The sheet needs a "
+                         "requirement-id column (e.g. 'PRD Req ID') and a column with the Jira story keys.")
+    hits, title, found = best
+    rows = {known[r]: v for r, v in found.items() if r in known}
+    return {"sheet": title, "rows": rows, "unknown": sorted(r for r in found if r not in known),
+            "not_in_file": sorted(v for k, v in known.items() if k not in found)}

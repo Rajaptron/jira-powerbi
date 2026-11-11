@@ -222,7 +222,17 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    **Missed requirements** list with the closest stories; a requirement map and coverage per PRD feature; the
    **matrix** (PRD feature → Jira feature → requirement → user stories, with delivery status, defects and tester);
    and **Jira work not in the PRD**: Jira features no PRD feature maps to, and user stories no requirement asks for.
-4. **Export RTM (CSV)** and **Export missed (CSV)**, chart images, Copy Jira query and ✎ editing of requirement
+4. **Already have a traceability matrix in Excel?** Click **Import RTM (Excel/CSV)** after adding the PRD. The app
+   finds the sheet with a requirement-id column (e.g. "PRD Req ID") and a Jira-story column. Its story links become
+   confirmed links, and its coverage verdicts (Fully / Partially covered, Critical gap, Design drift, External
+   dependency) and gap notes become each requirement's **assessment**. Requirements in the PRD but missing from your
+   sheet are flagged. You can change an assessment or note per requirement in the matrix; your assessment overrides
+   the automatic coverage. The **Coverage summary** then shows, per PRD feature, what your RTM's summary sheet shows.
+5. **PRDs with requirement tables in PDF** (an ID column like `CIS-ROM-01` or `NFR AVAIL 001` next to "Requirement +
+   Explanation") are read row by row, with the title kept apart from the explanation. Functional, non-functional and
+   acceptance-criteria tables are told apart, and only functional requirements are traced until you tick the others
+   under **Trace**.
+6. **Export RTM (CSV)** and **Export missed (CSV)**, chart images, Copy Jira query and ✎ editing of requirement
    text and priority all work here. Your links are saved in `output/rtm.json`.
 
 Sample PRDs to try with the demo data are in `samples/`.
