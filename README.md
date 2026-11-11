@@ -207,16 +207,23 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    `/wiki/x/…` links work too), and your account needs permission to view it. Tables, bullets, task lists and info
    panels are all read, and Jira issues embedded in the page are linked straight to those tickets. After the PRD
    changes, click **⟳ Re-read page**; links you confirmed are kept for requirement ids that still exist.
-2. The app suggests the tickets that cover each requirement. It compares wording against ticket summaries,
-   descriptions, labels and epics, and treats a ticket that mentions the requirement id as a sure match. Click ✓
-   to confirm a suggestion or × to reject it, or type a ticket key to link one by hand. Suggestions at 45% or more
-   count until you decide. **Confirm strong suggestions** accepts them all at once.
-3. Each requirement then shows its tickets, a status (Delivered / In testing / In progress / Planned /
-   Not covered), defects open/total and who tested it. The **requirement map** shows every requirement as a
-   coloured square per feature, and **coverage by feature** shows a bar per feature. **Tickets not traced to the
-   PRD** lists work that no requirement asks for.
-4. **Export RTM (CSV)**, chart images, Copy Jira query and ✎ editing of requirement text and priority all work
-   here. Your links are saved in `output/rtm.json`.
+2. **How the mapping works.** It follows your Jira structure: *Epic (service) → Feature → User story*.
+   - Each **PRD feature** (a section of the PRD, e.g. "Invoices") is matched to a **Jira feature**: the issue your
+     user stories sit under. That's the story's parent (a Feature, or an Epic when stories hang straight off epics),
+     or a Feature issue the story is linked to. Check these in **Feature mapping**: ✓ to confirm, × to remove,
+     or pick the right one from the list.
+   - Each **requirement** is then matched against the **user stories under that Jira feature**. A story that
+     mentions the requirement id (e.g. `FR-7`), or a ticket the PRD names, is a sure match. Otherwise the wording
+     is compared, ignoring the feature's own name. Stories outside the feature need much closer wording.
+   - A requirement is **covered** when at least one user story is linked to it, and **missed** when none is.
+     Suggestions at 35% or more count until you confirm (✓) or reject (×) them. **Confirm strong suggestions**
+     accepts them all, feature matches included. You can also type a story key to link one by hand.
+3. **What you see:** coverage KPIs (PRD features in Jira, requirements covered vs missed, delivered); the
+   **Missed requirements** list with the closest stories; a requirement map and coverage per PRD feature; the
+   **matrix** (PRD feature → Jira feature → requirement → user stories, with delivery status, defects and tester);
+   and **Jira work not in the PRD**: Jira features no PRD feature maps to, and user stories no requirement asks for.
+4. **Export RTM (CSV)** and **Export missed (CSV)**, chart images, Copy Jira query and ✎ editing of requirement
+   text and priority all work here. Your links are saved in `output/rtm.json`.
 
 Sample PRDs to try with the demo data are in `samples/`.
 

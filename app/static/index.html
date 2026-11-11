@@ -371,6 +371,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
             <button type="button" id="rtmAddReq">+ Add requirement</button>
             <button type="button" id="rtmAcceptAll" class="rtm-needs-doc">✓ Confirm strong suggestions</button>
             <button type="button" id="rtmCsv" class="rtm-needs-doc">Export RTM (CSV)</button>
+            <button type="button" id="rtmMissedCsv" class="rtm-needs-doc">Export missed (CSV)</button>
             <button type="button" id="rtmRemove" class="rtm-needs-doc">Remove PRD</button>
           </div>
         </div>
@@ -382,17 +383,20 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
         <p class="hint cap" id="rtmUploadMsg" style="margin:8px 0 0">Upload the PRD as Word (.docx), PDF, Markdown or text, or read it straight from Confluence (uses your Jira login; the page must be on the same Atlassian site). Requirements are read from requirement tables, ids like REQ-1 / FR-2.1, and bullet points under "Requirements" / "Features" headings.</p>
       </div>
       <div class="kpis rtm-needs-doc" id="rtmKpis"></div>
+      <div class="panel rtm-needs-doc" style="border-left:4px solid #e5484d"><h2>Missed requirements — no user story covers these</h2><div class="tbl-wrap" id="rtmMissed"></div></div>
       <div class="grid2 rtm-needs-doc">
         <div class="panel"><h2>Requirement map</h2><div id="rtmMap"></div></div>
-        <div class="panel"><h2>Coverage by feature</h2><div id="rtmFeatures"></div></div>
+        <div class="panel"><h2>Coverage by PRD feature</h2><div id="rtmFeatures"></div></div>
       </div>
-      <div class="panel rtm-needs-doc"><h2>Traceability matrix</h2>
-        <div class="filters cap" style="margin:0 0 10px"><input id="rtmSearch" placeholder="Search requirements or tickets…" style="min-width:260px">
-          <select id="rtmStatus"><option value="">All statuses</option><option>Delivered</option><option>In testing</option><option>In progress</option><option>Planned</option><option>Not covered</option></select></div>
+      <div class="panel rtm-needs-doc"><h2>Feature mapping — PRD feature ↔ Jira feature</h2><div class="tbl-wrap" id="rtmFeatMap"></div>
+        <p class="hint">Each PRD feature (a section of the PRD) is matched to the Jira feature its user stories sit under — the parent of the stories (a Feature, or an Epic when stories hang straight off epics). Requirements are then matched first against the user stories under that Jira feature. Check the dashed suggestions: ✓ to confirm, × to remove, or pick the right one from the list.</p></div>
+      <div class="panel rtm-needs-doc"><h2>Traceability matrix — requirement → user stories</h2>
+        <div class="filters cap" style="margin:0 0 10px"><input id="rtmSearch" placeholder="Search requirements or stories…" style="min-width:260px">
+          <select id="rtmStatus"><option value="">All requirements</option><option value="Covered">Covered</option><option>Missed</option><option>Delivered</option><option>In testing</option><option>In progress</option><option>Planned</option></select></div>
         <div class="tbl-wrap" id="rtmMatrix"></div>
-        <p class="hint">Click a requirement's text or priority to edit it. Type a ticket key and press Enter to link it. Strong suggestions (≥ 45% match, or the ticket mentions the requirement id) count towards coverage until you confirm or reject them.</p>
+        <p class="hint">A requirement is <b>covered</b> when at least one user story is linked to it. Solid = you confirmed it; dashed = a strong suggestion (≥ 35% match, the story mentions the requirement id, or the PRD names the ticket) that counts until you confirm or reject it — "Covered?" means only suggestions so far. Click a requirement's text or priority to edit it; type a story key and press Enter to link one.</p>
       </div>
-      <div class="panel rtm-needs-doc"><h2>Tickets not traced to the PRD</h2><div class="tbl-wrap" id="rtmUntraced" style="max-height:420px"></div></div>
+      <div class="panel rtm-needs-doc"><h2>Jira work not in the PRD</h2><div class="tbl-wrap" id="rtmUntraced" style="max-height:480px"></div></div>
     </div>
   </section>
 
@@ -2219,8 +2223,8 @@ function openInJira(rows){
 
 // ---------- Traceability (RTM): PRD requirements ↔ Jira tickets, per service ----------
 let RTM = {}, rtmService = "", rtmSaveTimer = null;
-const RTM_STATUS = ["Delivered", "In testing", "In progress", "Planned", "Not covered"];
-const RTM_COLOR = {"Delivered":"var(--b-done)", "In testing":"var(--b-test)", "In progress":"var(--b-dev)", "Planned":"var(--b-todo)", "Not covered":"#e5484d"};
+const RTM_STATUS = ["Delivered", "In testing", "In progress", "Planned", "Missed"];
+const RTM_COLOR = {"Delivered":"var(--b-done)", "In testing":"var(--b-test)", "In progress":"var(--b-dev)", "Planned":"var(--b-todo)", "Missed":"#e5484d"};
 const STOP = new Set(("a an the and or of to for in on at by with from as is are be can must shall should will user users system able " +
   "that this it its into via per their them we our when every all any each new allow allows support supports provide provides enable " +
   "so want i my has have page see show current").split(" "));
@@ -2229,43 +2233,98 @@ const stem = w => { if(w.length <= 4) return w;
   if(w.endsWith("ies")) return w.slice(0, -3) + "y";
   if(w.endsWith("s") && !w.endsWith("ss")) w = w.slice(0, -1);
   return w.length > 5 ? w.replace(/(ing|ed)$/, "") : w; };
-const tokens = t => (t || "").toLowerCase().split(/[^a-z0-9%]+/).filter(w => w.length > 2 && !STOP.has(w)).map(stem);
+const tokens = t => (t || "").toLowerCase().replace(/%/g, " percent ").split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w)).map(stem);
 
-// TF-IDF over the service's tickets; cosine similarity against each requirement. An explicit id mention wins outright.
-function rtmIndex(tickets){
-  const df = new Map(), docs = tickets.map(i => { const tf = new Map();
-    tokens(`${i.Summary} ${i.Summary} ${i.Description || ""} ${i.Labels || ""} ${(i.Parent || "").replace(/^\S+\s/, "")}`).forEach(w => tf.set(w, (tf.get(w) || 0) + 1));
-    tf.forEach((_, w) => df.set(w, (df.get(w) || 0) + 1)); return {i, tf}; });
+// TF-IDF over a set of documents; cosine similarity against a query.
+function rtmIndex(items, textOf){
+  const df = new Map(), docs = items.map(x => { const tf = new Map();
+    tokens(textOf(x)).forEach(w => tf.set(w, (tf.get(w) || 0) + 1));
+    tf.forEach((_, w) => df.set(w, (df.get(w) || 0) + 1)); return {x, tf}; });
   const idf = w => Math.log((1 + docs.length) / (1 + (df.get(w) || 0))) + 1;
   const vec = tf => { let n = 0; const v = new Map(); tf.forEach((c, w) => { const x = (1 + Math.log(c)) * idf(w); v.set(w, x); n += x * x; });
     n = Math.sqrt(n) || 1; v.forEach((x, w) => v.set(w, x / n)); return v; };
   docs.forEach(d => d.v = vec(d.tf));
-  return {docs, vec: text => { const tf = new Map(); tokens(text).forEach(w => tf.set(w, (tf.get(w) || 0) + 1)); return vec(tf); }};
+  return {docs, query: text => { const tf = new Map(); tokens(text).forEach(w => tf.set(w, (tf.get(w) || 0) + 1)); return vec(tf); },
+          score: (qv, d) => { let s = 0; qv.forEach((x, w) => { s += x * (d.v.get(w) || 0); }); return s; }};
 }
-function rtmTickets(service){
-  const C = roleCtx();
-  return boardIssues().filter(i => i.Service === service && !hidden.Project.has(i.Project) && !C.isDefect(i));
+// Share of words two names have in common (for feature names).
+const nameSim = (a, b) => { const A = new Set(tokens(a)), B = new Set(tokens(b)); if(!A.size || !B.size) return 0;
+  let n = 0; A.forEach(w => { if(B.has(w)) n++; }); return n / Math.sqrt(A.size * B.size); };
+const ordered = arr => [...new Set(arr)];
+const NOFEAT = "(No feature)";
+const featOf = r => r.feature || NOFEAT;
+function prdFeatures(doc){
+  const used = ordered(doc.requirements.map(featOf));
+  return [...doc.features.filter(f => used.includes(f)), ...used.filter(f => !doc.features.includes(f))];
 }
-// For each requirement: confirmed links, plus suggestions {key, score, why} not yet confirmed or rejected.
-function rtmMatch(service, doc){
-  const tickets = rtmTickets(service), idx = rtmIndex(tickets), out = {};
-  doc.requirements.forEach(r => {
-    const rv = idx.vec(`${r.text} ${r.feature}`), linked = new Set(doc.links[r.id] || []), rejected = new Set(doc.rejected[r.id] || []);
-    const safeId = r.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), idRe = new RegExp("\\b" + safeId + "\\b", "i");
-    const named = new Set((`${r.text} ${r.feature}`.toUpperCase().match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || []));
-    const scored = idx.docs.map(d => { let s = 0; rv.forEach((x, w) => { s += x * (d.v.get(w) || 0); });
-      if(named.has(d.i.Key)) return {key: d.i.Key, score: 1, why: "named in the PRD"};
-      const byId = !/^REQ-\d{3}$/.test(r.id) && idRe.test(`${d.i.Summary} ${d.i.Description || ""} ${d.i.Labels || ""}`);
-      return {key: d.i.Key, score: byId ? 1 : s, why: byId ? "mentions " + r.id : "similar wording"}; })
-      .filter(x => x.score >= 0.18 && !linked.has(x.key) && !rejected.has(x.key)).sort((a, b) => b.score - a.score).slice(0, 3);
-    out[r.id] = {linked: [...linked], suggested: scored};
+const CONTAINER = /epic|feature|initiative|theme|capabilit/i, SUBTASK = /sub-?task/i;
+// The service's Jira side: its user stories, and the Jira features they sit under (each story's parent issue —
+// a Feature under the service epic, or the epic itself when stories hang straight off epics).
+function rtmJira(service, doc){
+  const C = roleCtx(), pool = boardIssues().filter(i => !hidden.Project.has(i.Project));
+  const mapped = new Set(Object.values(doc.featureMap || {}).flat());
+  const work = i => !C.isDefect(i) && !CONTAINER.test(i.IssueType) && !SUBTASK.test(i.IssueType);
+  let stories = pool.filter(i => work(i) && (i.Service === service || mapped.has(i.ParentKey) || (i.Links || []).some(k => mapped.has(k))));
+  if(stories.some(i => /stor/i.test(i.IssueType))) stories = stories.filter(i => /stor/i.test(i.IssueType));
+  const features = new Map();
+  const feature = (key, fallback) => {
+    if(!features.has(key)){ const i = C.byKey.get(key);
+      features.set(key, {key, summary: i ? i.Summary : (fallback || "").replace(/^\S+\s*/, ""), type: i ? i.IssueType : "", issue: i, stories: []}); }
+    return features.get(key); };
+  // A story's Jira feature: its parent — or, when Features are joined to stories by an issue link instead,
+  // the linked Feature issue.
+  const linkedFeature = s => (s.Links || []).find(k => /feature/i.test((C.byKey.get(k) || {}).IssueType || ""));
+  stories.forEach(s => { const parent = C.byKey.get(s.ParentKey), viaLink = linkedFeature(s);
+    s._feature = parent && /feature/i.test(parent.IssueType) ? s.ParentKey : viaLink || s.ParentKey || "";
+    if(s._feature) feature(s._feature, s._feature === s.ParentKey ? s.Parent : "").stories.push(s); });
+  // Feature-level issues of the service that have no stories yet (not the service epic above them).
+  const containers = pool.filter(i => i.Service === service && CONTAINER.test(i.IssueType));
+  const above = new Set(containers.map(i => i.ParentKey).filter(Boolean));
+  containers.forEach(i => { if(!above.has(i.Key) || features.has(i.Key)) feature(i.Key); });
+  mapped.forEach(k => feature(k));
+  return {stories, features: [...features.values()]};
+}
+const FEATURE_AUTO = 0.25;  // PRD feature ↔ Jira feature suggestion that's used until you confirm or change it
+// PRD feature -> {keys: Jira features, auto: true when suggested, ranked: every Jira feature by match}
+function rtmFeatureMap(doc, jira){
+  const idx = rtmIndex(jira.features, f => `${f.summary} ${f.summary} ${f.summary} ${f.issue?.Description || ""} ${f.stories.map(s => s.Summary).join(" ")}`);
+  const fm = doc.featureMap || {}, out = {};
+  prdFeatures(doc).forEach(name => {
+    const reqs = doc.requirements.filter(r => featOf(r) === name).map(r => r.text).join(" ");
+    const qv = idx.query(`${name} ${name} ${name} ${reqs}`);
+    const ranked = idx.docs.map(d => ({key: d.x.key, score: Math.min(1, Math.max(idx.score(qv, d), name === NOFEAT ? 0 : nameSim(name, d.x.summary)))}))
+      .sort((a, b) => b.score - a.score);
+    if(Object.prototype.hasOwnProperty.call(fm, name)) { out[name] = {keys: fm[name], auto: false, ranked}; return; }
+    const best = ranked[0], keys = best && best.score >= FEATURE_AUTO && name !== NOFEAT
+      ? ranked.filter(x => x.score >= FEATURE_AUTO && x.score >= best.score * 0.8).slice(0, 2).map(x => x.key) : [];
+    out[name] = {keys, auto: true, ranked};
   });
   return out;
 }
-const AUTO = 0.45;  // strong suggestions count towards coverage until you confirm or reject them
+// For each requirement: confirmed user stories, plus suggestions {key, score, why} not yet confirmed or rejected.
+// Stories under the requirement's Jira feature are preferred; stories elsewhere need much closer wording.
+function rtmMatch(doc, jira, fmap){
+  const C = roleCtx(), idx = rtmIndex(jira.stories, i => `${i.Summary} ${i.Summary} ${i.Description || ""} ${i.Labels || ""}`), out = {};
+  doc.requirements.forEach(r => {
+    const jf = new Set((fmap[featOf(r)] || {}).keys || []), linked = new Set(doc.links[r.id] || []), rejected = new Set(doc.rejected[r.id] || []);
+    // Words of the feature's own name are shared by every story under it, so they don't tell those stories apart.
+    const fw = new Set(tokens(`${r.feature || ""} ${[...jf].map(k => (jira.features.find(f => f.key === k) || {}).summary || "").join(" ")}`));
+    const own = tokens(r.text).filter(w => !fw.has(w)), qv = idx.query(own.length ? own.join(" ") : r.text);
+    const safeId = r.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), idRe = new RegExp("\\b" + safeId + "\\b", "i");
+    const named = (`${r.text}`.toUpperCase().match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || []).filter(k => C.byKey.has(k));
+    const scored = idx.docs.map(d => { const i = d.x, s = idx.score(qv, d), inF = jf.has(i._feature);
+      if(!/^REQ-\d{3}$/.test(r.id) && idRe.test(`${i.Summary} ${i.Description || ""} ${i.Labels || ""}`)) return {key: i.Key, score: 1, why: "mentions " + r.id};
+      return {key: i.Key, score: inF ? Math.min(1, s + 0.12) : (jf.size ? s * 0.6 : s), why: inF ? "under the mapped Jira feature" : "similar wording"}; });
+    const sug = [...named.map(k => ({key: k, score: 1, why: "named in the PRD"})), ...scored]
+      .filter(x => x.score >= 0.18 && !linked.has(x.key) && !rejected.has(x.key));
+    out[r.id] = {linked: [...linked], suggested: sug.filter((x, n) => sug.findIndex(y => y.key === x.key) === n).sort((a, b) => b.score - a.score).slice(0, 3)};
+  });
+  return out;
+}
+const AUTO = 0.35;  // strong suggestions count as coverage until you confirm or reject them
 function rtmRollup(keys){
   const C = roleCtx(), items = keys.map(k => C.byKey.get(k)).filter(Boolean);
-  if(!items.length) return {status:"Not covered", items, defects:[], open:[], tested:""};
+  if(!items.length) return {status:"Missed", items, defects:[], open:[], tested:""};
   const st = C.stg, rank = b => DATA.buckets.indexOf(b);
   const status = items.every(isDone) ? "Delivered" : items.some(i => i.Bucket === st.qaBucket) ? "In testing"
     : items.some(i => isActive(i) || rank(i.Bucket) >= rank(st.devBucket)) ? "In progress" : "Planned";
@@ -2275,13 +2334,18 @@ function rtmRollup(keys){
 }
 function rtmEvaluate(service){
   const doc = RTM[service]; if(!doc) return null;
-  const m = rtmMatch(service, doc);
+  doc.links = doc.links || {}; doc.rejected = doc.rejected || {};
+  const jira = rtmJira(service, doc), fmap = rtmFeatureMap(doc, jira), m = rtmMatch(doc, jira, fmap);
   const rows = doc.requirements.map(r => { const sug = m[r.id].suggested, auto = sug.filter(s => s.score >= AUTO).map(s => s.key);
-    const keys = [...m[r.id].linked, ...auto]; return {r, linked: m[r.id].linked, suggested: sug, auto, ...rtmRollup(keys)}; });
+    return {r, jf: (fmap[featOf(r)] || {}).keys || [], linked: m[r.id].linked, suggested: sug, auto, ...rtmRollup([...m[r.id].linked, ...auto])}; });
   const traced = new Set(rows.flatMap(x => x.items.map(i => i.Key)));
-  const untraced = rtmTickets(service).filter(i => !traced.has(i.Key));
-  return {doc, rows, untraced};
+  const mappedJ = new Set(Object.values(fmap).flatMap(f => f.keys));
+  const features = prdFeatures(doc).map(name => ({name, map: fmap[name], rows: rows.filter(x => featOf(x.r) === name)}));
+  return {doc, rows, features, jira, fmap, missed: rows.filter(x => x.status === "Missed"),
+          untraced: jira.stories.filter(i => !traced.has(i.Key)), unmappedJira: jira.features.filter(f => !mappedJ.has(f.key))};
 }
+const covered = rows => rows.filter(x => x.status !== "Missed").length;
+const share = (a, b) => b ? Math.round(100 * a / b) + "%" : "–";
 function saveRtm(service){
   clearTimeout(rtmSaveTimer);
   rtmSaveTimer = setTimeout(() => api("/api/rtm/save", {service, doc: RTM[service]}), 400);
@@ -2295,13 +2359,14 @@ function statusBar(counts, total){
   return `<div class="bar" style="width:100%">${RTM_STATUS.map(s => counts[s] ? `<span style="width:${100 * counts[s] / total}%;background:${RTM_COLOR[s]}" title="${s}: ${counts[s]}">${100 * counts[s] / total > 8 ? counts[s] : ""}</span>` : "").join("")}</div>`;
 }
 const countBy = rows => Object.fromEntries(RTM_STATUS.map(s => [s, rows.filter(x => x.status === s).length]));
+const rtmLegend = c => `<div class="legend" style="margin-top:8px">${RTM_STATUS.map(s => `<span><i class="sw" style="background:${RTM_COLOR[s]}"></i>${s}${c ? ` (${c[s]})` : ""}</span>`).join("")}</div>`;
 
 function renderRtm(){
   const services = rtmServices();
   if(rtmService && !services.includes(rtmService)) rtmService = "";
   $("rtmStrip").innerHTML = `<button type="button" data-rtm-svc="" class="${rtmService ? "" : "active"}">All services</button>` +
-    services.map(s => { const e = RTM[s] ? rtmEvaluate(s) : null, pctCov = e && e.rows.length ? Math.round(100 * e.rows.filter(x => x.status !== "Not covered").length / e.rows.length) : null;
-      return `<button type="button" data-rtm-svc="${esc(s)}" class="${s === rtmService ? "active" : ""}">${esc(s)}${pctCov != null ? ` <span class="sub">${pctCov}%</span>` : ""}</button>`; }).join("");
+    services.map(s => { const e = RTM[s] ? rtmEvaluate(s) : null, p = e && e.rows.length ? share(covered(e.rows), e.rows.length) : null;
+      return `<button type="button" data-rtm-svc="${esc(s)}" class="${s === rtmService ? "active" : ""}">${esc(s)}${p ? ` <span class="sub">${p}</span>` : ""}</button>`; }).join("");
   $("rtmOverview").classList.toggle("hidden", !!rtmService);
   $("rtmService").classList.toggle("hidden", !rtmService);
   return rtmService ? renderRtmService(rtmService) : renderRtmOverview(services);
@@ -2311,85 +2376,131 @@ function renderRtmOverview(services){
   const rows = services.map(s => ({s, e: RTM[s] ? rtmEvaluate(s) : null}));
   const withDoc = rows.filter(x => x.e);
   const all = withDoc.flatMap(x => x.e.rows), c = countBy(all);
-  $("rtmOvKpis").innerHTML = [["Services with a PRD", `${withDoc.length} / ${services.length}`], ["Requirements", all.length],
-    ["Covered by tickets", all.length ? Math.round(100 * (all.length - c["Not covered"]) / all.length) + "%" : "–"],
-    ["Delivered", all.length ? Math.round(100 * c.Delivered / all.length) + "%" : "–"], ["Not covered", c["Not covered"]],
-    ["Open defects on requirements", uniq(all.flatMap(x => x.open.map(d => d.Key))).length]]
+  const feats = withDoc.flatMap(x => x.e.features), fMapped = feats.filter(f => f.map.keys.length).length;
+  $("rtmOvKpis").innerHTML = [["Services with a PRD", `${withDoc.length} / ${services.length}`], ["PRD features in Jira", `${fMapped} / ${feats.length}`],
+    ["PRD requirements", all.length], ["Covered by user stories", `${covered(all)} <span class="sub">(${share(covered(all), all.length)})</span>`],
+    ["Missed requirements", `<span style="color:${c.Missed ? "#e5484d" : "inherit"}">${c.Missed}</span>`], ["Delivered", share(c.Delivered, all.length)]]
     .map(([l, v]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-  $("rtmOvTable").innerHTML = `<table><thead><tr><th>Service</th><th>PRD</th><th class="num">Requirements</th><th style="min-width:260px">Status of requirements</th><th class="num">Covered</th><th class="num">Delivered</th><th class="num">Open defects</th><th class="num">Tickets not in PRD</th><th></th></tr></thead><tbody>` +
-    rows.map(({s, e}) => { if(!e) return `<tr><td><b>${esc(s)}</b></td><td class="sub">No PRD yet</td><td></td><td></td><td></td><td></td><td></td><td></td><td><button type="button" data-rtm-svc="${esc(s)}">Upload PRD</button></td></tr>`;
-      const n = e.rows.length, c = countBy(e.rows), open = uniq(e.rows.flatMap(x => x.open.map(d => d.Key)));
-      return `<tr><td><b>${esc(s)}</b></td><td class="sub" title="${esc(e.doc.uploaded_at)}">${esc(e.doc.file || "added by hand")}</td><td class="num">${n}</td><td>${n ? statusBar(c, n) : ""}</td>
-        <td class="num">${n ? Math.round(100 * (n - c["Not covered"]) / n) + "%" : "–"}</td><td class="num">${n ? Math.round(100 * c.Delivered / n) + "%" : "–"}</td>
-        <td class="num">${open.length ? dl(open.length, {keys: open}, `${s} · open defects on requirements`) : "0"}</td>
-        <td class="num">${e.untraced.length ? dl(e.untraced.length, {keys: e.untraced.map(i => i.Key)}, `${s} · tickets not traced to the PRD`) : "0"}</td>
-        <td><button type="button" data-rtm-svc="${esc(s)}">Open</button></td></tr>`; }).join("") + `</tbody></table>` +
-    `<div class="legend" style="margin-top:8px">${RTM_STATUS.map(s => `<span><i class="sw" style="background:${RTM_COLOR[s]}"></i>${s}</span>`).join("")}</div>`;
+  $("rtmOvTable").innerHTML = `<table><thead><tr><th>Service</th><th>PRD</th><th class="num">PRD features<br><span class="sub">in Jira</span></th><th class="num">Requirements</th><th style="min-width:240px">Status of requirements</th><th class="num">Covered</th><th class="num">Missed</th><th class="num">Delivered</th><th class="num">Stories not in PRD</th><th></th></tr></thead><tbody>` +
+    rows.map(({s, e}) => { if(!e) return `<tr><td><b>${esc(s)}</b></td><td class="sub">No PRD yet</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td><button type="button" data-rtm-svc="${esc(s)}">Add PRD</button></td></tr>`;
+      const n = e.rows.length, c = countBy(e.rows), fm = e.features.filter(f => f.map.keys.length).length;
+      return `<tr><td><b>${esc(s)}</b></td><td class="sub" title="${esc(e.doc.uploaded_at)}">${esc(e.doc.file || "added by hand")}</td>
+        <td class="num">${fm} / ${e.features.length}</td><td class="num">${n}</td><td>${n ? statusBar(c, n) : ""}</td>
+        <td class="num">${covered(e.rows)} <span class="sub">${share(covered(e.rows), n)}</span></td>
+        <td class="num">${c.Missed ? `<button type="button" data-rtm-svc="${esc(s)}" style="color:#e5484d;font-weight:650">${c.Missed}</button>` : "0"}</td>
+        <td class="num">${share(c.Delivered, n)}</td>
+        <td class="num">${e.untraced.length ? dl(e.untraced.length, {keys: e.untraced.map(i => i.Key)}, `${s} · user stories not traced to the PRD`) : "0"}</td>
+        <td><button type="button" data-rtm-svc="${esc(s)}">Open</button></td></tr>`; }).join("") + `</tbody></table>` + rtmLegend();
+}
+
+// A ticket chip: confirmed (solid, × to unlink) or suggested (dashed, ✓ / ×).
+function rtmChip(k, kind, score){
+  const i = roleCtx().byKey.get(k); if(!i) return `<span class="rtm-chip missing" title="Not in the pulled data">${esc(k)}</span>`;
+  return `<span class="rtm-chip ${kind}" style="border-color:${bucketColor(i.Bucket)}" title="${esc(i.Summary)}\n${esc(i.Status)} · ${esc(i.Assignee)}${score ? `\nmatch ${Math.round(score * 100)}%` : ""}">` +
+    `<i class="sw" style="background:${bucketColor(i.Bucket)}"></i><a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(k)}</a>` +
+    (kind === "linked" ? `<button type="button" class="x" data-rtm-unlink="${esc(k)}" title="Remove link">×</button>`
+      : `<span class="sub">${Math.round(score * 100)}%</span><button type="button" class="ok" data-rtm-accept="${esc(k)}" title="Confirm link">✓</button><button type="button" class="x" data-rtm-reject="${esc(k)}" title="Not related">×</button>`) + `</span>`;
+}
+const storyChips = x => x.linked.map(k => rtmChip(k, "linked")).join("") + x.suggested.map(s => rtmChip(s.key, s.score >= AUTO ? "auto" : "suggested", s.score)).join("");
+function jiraFeatLabel(e, k){
+  const f = e.jira.features.find(f => f.key === k), i = roleCtx().byKey.get(k);
+  return `${i ? `<a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(k)}</a>` : esc(k)} ${esc(f ? f.summary : "")}`;
 }
 
 function renderRtmService(service){
   const e = rtmEvaluate(service);
   $("rtmSvcTitle").textContent = service;
   const d = e && e.doc, src = d && d.source_url;
-  $("rtmSvcFile").innerHTML = !e ? "No PRD uploaded yet for this service."
+  $("rtmSvcFile").innerHTML = !e ? "No PRD added yet for this service."
     : (src ? `<a href="${esc(src)}" target="_blank" rel="noopener">${esc(d.file)}</a>${d.page_version ? ` (version ${esc(d.page_version)})` : ""} · read ${esc(d.uploaded_at || "")}`
            : `${esc(d.file || "Requirements added by hand")} · uploaded ${esc(d.uploaded_at || "")}`);
   $("rtmConfReload").classList.toggle("hidden", !src);
   if(document.activeElement !== $("rtmConfUrl")) $("rtmConfUrl").value = src || "";
-  ["rtmKpis", "rtmMap", "rtmFeatures", "rtmMatrix", "rtmUntraced"].forEach(id => $(id).innerHTML = "");
+  ["rtmKpis", "rtmMissed", "rtmMap", "rtmFeatures", "rtmFeatMap", "rtmMatrix", "rtmUntraced"].forEach(id => $(id).innerHTML = "");
   document.querySelectorAll("#rtmService .rtm-needs-doc").forEach(p => p.classList.toggle("hidden", !e));
   if(!e) return;
-  const rows = e.rows, n = rows.length, c = countBy(rows), open = uniq(rows.flatMap(x => x.open.map(d => d.Key)));
-  const sugCount = rows.reduce((a, x) => a + x.suggested.length, 0);
-  $("rtmKpis").innerHTML = [["Requirements", n, null], ["Covered by tickets", n ? Math.round(100 * (n - c["Not covered"]) / n) + "%" : "–", null],
-    ["Delivered", `${c.Delivered} <span class="sub">(${n ? Math.round(100 * c.Delivered / n) : 0}%)</span>`, null], ["In progress / testing", c["In progress"] + c["In testing"], null],
-    ["Not covered", c["Not covered"], null], ["Open defects", open.length, open.length ? {keys: open} : null],
-    ["Tickets not in PRD", e.untraced.length, e.untraced.length ? {keys: e.untraced.map(i => i.Key)} : null], ["Suggestions to review", sugCount, null]]
-    .map(([l, v, c2]) => `<div class="kpi"${c2 ? drill(c2, `${service} · ${l}`) : ""}><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const rows = e.rows, n = rows.length, c = countBy(rows), cov = covered(rows), conf = rows.filter(x => x.linked.length).length;
+  const fMapped = e.features.filter(f => f.map.keys.length).length, sugCount = rows.reduce((a, x) => a + x.suggested.length, 0) + e.features.filter(f => f.map.auto && f.map.keys.length).length;
+  $("rtmKpis").innerHTML = [
+    ["PRD features in Jira", `${fMapped} / ${e.features.length}`, null],
+    ["PRD requirements", n, null],
+    ["Covered by user stories", `${cov} <span class="sub">(${share(cov, n)})</span>`, cov ? {keys: uniq(rows.flatMap(x => x.items.map(i => i.Key)))} : null, `${conf} confirmed, ${cov - conf} suggested`],
+    ["Missed requirements", `<span style="color:${c.Missed ? "#e5484d" : "inherit"}">${c.Missed}</span> <span class="sub">(${share(c.Missed, n)})</span>`, null],
+    ["Delivered", `${c.Delivered} <span class="sub">(${share(c.Delivered, n)})</span>`, null],
+    ["User stories not in PRD", e.untraced.length, e.untraced.length ? {keys: e.untraced.map(i => i.Key)} : null],
+    ["Jira features not in PRD", e.unmappedJira.length, null],
+    ["Suggestions to review", sugCount, null]]
+    .map(([l, v, c2, tip]) => `<div class="kpi"${c2 ? drill(c2, `${service} · ${l}`) : ""}${tip ? ` title="${esc(tip)}"` : ""}><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
 
-  // Requirement map: one square per requirement, grouped by feature, coloured by status.
-  const features = uniq(rows.map(x => x.r.feature || "(No feature)")).sort((a, b) => e.doc.features.indexOf(a) - e.doc.features.indexOf(b));
-  $("rtmMap").innerHTML = features.map(f => { const fr = rows.filter(x => (x.r.feature || "(No feature)") === f);
-    return `<div class="rtm-maprow"><div class="n" title="${esc(f)}">${esc(f)}</div><div class="rtm-cells">${fr.map(x =>
-      `<a href="#rtm-${esc(x.r.id)}" class="rtm-cell" style="background:${RTM_COLOR[x.status]}" title="${esc(x.r.id)} · ${esc(x.status)}\n${esc(x.r.text)}">${esc(x.r.id.replace(/^REQ-0*/, ""))}</a>`).join("")}</div></div>`; }).join("") +
-    `<div class="legend" style="margin-top:10px">${RTM_STATUS.map(s => `<span><i class="sw" style="background:${RTM_COLOR[s]}"></i>${s} (${c[s]})</span>`).join("")}</div>`;
+  // Missed requirements: what the PRD asks for that no user story covers yet.
+  $("rtmMissed").innerHTML = !e.missed.length ? `<p class="hint" style="margin:0">✓ Every PRD requirement is covered by at least one user story.</p>`
+    : `<table class="rtm"><thead><tr><th>ID</th><th>Requirement</th><th>PRD feature</th><th>Jira feature</th><th>Closest user stories <span class="sub">(✓ to link)</span></th></tr></thead><tbody>` +
+      e.missed.map(x => `<tr data-req="${esc(x.r.id)}"><td><a href="#rtm-${esc(x.r.id)}"><b>${esc(x.r.id)}</b></a></td><td class="wrap">${esc(x.r.text)}</td>
+        <td>${esc(featOf(x.r))}</td><td class="wrap">${x.jf.length ? x.jf.map(k => jiraFeatLabel(e, k)).join("<br>") : `<span style="color:#e5484d">Not in Jira</span>`}</td>
+        <td class="wrap">${storyChips(x) || `<span class="sub">No similar story</span>`} <input class="rtm-add" data-rtm-add placeholder="+ story key" size="10"></td></tr>`).join("") + `</tbody></table>`;
 
-  // Feature coverage bars
-  $("rtmFeatures").innerHTML = features.map(f => { const fr = rows.filter(x => (x.r.feature || "(No feature)") === f), fc = countBy(fr);
-    return `<div class="barrow"><div class="n" title="${esc(f)}">${esc(f)}</div>${statusBar(fc, fr.length)}<div class="tot">${Math.round(100 * fc.Delivered / fr.length)}% done</div></div>`; }).join("");
+  // Requirement map: one square per requirement, grouped by PRD feature, coloured by status.
+  $("rtmMap").innerHTML = e.features.map(f => `<div class="rtm-maprow"><div class="n" title="${esc(f.name)}">${esc(f.name)}</div><div class="rtm-cells">${f.rows.map(x =>
+      `<a href="#rtm-${esc(x.r.id)}" class="rtm-cell" style="background:${RTM_COLOR[x.status]}" title="${esc(x.r.id)} · ${esc(x.status)}\n${esc(x.r.text)}">${esc(x.r.id.replace(/^REQ-0*/, ""))}</a>`).join("")}</div></div>`).join("") + rtmLegend(c);
+  $("rtmFeatures").innerHTML = e.features.map(f => `<div class="barrow"><div class="n" title="${esc(f.name)}">${esc(f.name)}</div>${statusBar(countBy(f.rows), f.rows.length)}<div class="tot">${covered(f.rows)}/${f.rows.length} covered</div></div>`).join("");
 
-  // The matrix
+  // Feature mapping: PRD feature ↔ Jira feature(s).
+  $("rtmFeatMap").innerHTML = `<table class="rtm"><thead><tr><th>PRD feature</th><th>Jira feature <span class="sub">(solid = confirmed, dashed = suggested)</span></th><th class="num">User stories<br><span class="sub">under it</span></th><th class="num">Requirements</th><th class="num">Covered</th><th class="num">Missed</th><th style="min-width:160px"></th></tr></thead><tbody>` +
+    e.features.map(f => { const fc = countBy(f.rows), used = new Set(f.map.keys);
+      const stories = e.jira.stories.filter(s => used.has(s._feature));
+      const chips = f.map.keys.map(k => { const sc = (f.map.ranked.find(x => x.key === k) || {}).score || 0, jf = e.jira.features.find(x => x.key === k);
+        return `<span class="rtm-chip ${f.map.auto ? "auto" : "linked"}" title="${esc(jf ? `${jf.type || "Issue"} · ${jf.stories.length} user stories` : "")}">${jiraFeatLabel(e, k)}` +
+          (f.map.auto ? ` <span class="sub">${Math.round(sc * 100)}%</span><button type="button" class="ok" data-rtm-faccept="1" title="Confirm">✓</button>` : "") +
+          `<button type="button" class="x" data-rtm-fremove="${esc(k)}" title="Not this feature">×</button></span>`; }).join("");
+      const opts = f.map.ranked.filter(x => !used.has(x.key)).slice(0, 40).map(x => { const jf = e.jira.features.find(y => y.key === x.key);
+        return `<option value="${esc(x.key)}">${esc(x.key)} · ${esc((jf.summary || "").slice(0, 60))}${x.score >= 0.05 ? ` (${Math.round(x.score * 100)}%)` : ""}</option>`; }).join("");
+      return `<tr data-feat="${esc(f.name)}"><td><b>${esc(f.name)}</b></td>
+        <td class="wrap">${chips || `<span style="color:#e5484d">No Jira feature</span> `}<select data-rtm-fadd style="max-width:240px"><option value="">+ map a Jira feature…</option>${opts}</select></td>
+        <td class="num">${stories.length ? dl(stories.length, {keys: stories.map(s => s.Key)}, `${f.name} · user stories`) : "0"}</td>
+        <td class="num">${f.rows.length}</td><td class="num">${covered(f.rows)}</td>
+        <td class="num">${fc.Missed ? `<span style="color:#e5484d;font-weight:650">${fc.Missed}</span>` : "0"}</td><td>${statusBar(fc, f.rows.length)}</td></tr>`; }).join("") + `</tbody></table>`;
+
+  // The matrix: PRD feature → Jira feature → requirement → user stories.
   const q = $("rtmSearch").value.trim().toLowerCase(), want = $("rtmStatus").value;
-  const chip = (k, kind, score) => { const i = roleCtx().byKey.get(k); if(!i) return `<span class="rtm-chip missing" title="Not in the pulled data">${esc(k)}</span>`;
-    return `<span class="rtm-chip ${kind}" style="border-color:${bucketColor(i.Bucket)}" title="${esc(i.Summary)}\n${esc(i.Status)} · ${esc(i.Assignee)}${score ? `\nmatch ${Math.round(score * 100)}%` : ""}">` +
-      `<i class="sw" style="background:${bucketColor(i.Bucket)}"></i><a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(k)}</a>` +
-      (kind === "linked" ? `<button type="button" class="x" data-rtm-unlink="${esc(k)}" title="Remove link">×</button>`
-        : `<span class="sub">${Math.round(score * 100)}%</span><button type="button" class="ok" data-rtm-accept="${esc(k)}" title="Confirm link">✓</button><button type="button" class="x" data-rtm-reject="${esc(k)}" title="Not related">×</button>`) + `</span>`; };
-  const shown = rows.filter(x => (!want || x.status === want) && (!q || `${x.r.id} ${x.r.text} ${x.r.feature} ${x.items.map(i => i.Key + " " + i.Summary).join(" ")}`.toLowerCase().includes(q)));
-  $("rtmMatrix").innerHTML = `<table class="rtm"><thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>Linked tickets <span class="sub">(solid = confirmed, dashed = suggested)</span></th><th>Status</th><th class="num">Defects<br><span class="sub">open / all</span></th><th>Tested by</th><th></th></tr></thead><tbody>` +
-    features.map(f => { const fr = shown.filter(x => (x.r.feature || "(No feature)") === f); if(!fr.length) return "";
-      return `<tr class="rtm-feature"><td colspan="8">${esc(f)} <span class="sub">${fr.length} requirement${fr.length === 1 ? "" : "s"}</span></td></tr>` +
+  const shown = rows.filter(x => (!want || (want === "Covered" ? x.status !== "Missed" : x.status === want)) &&
+    (!q || `${x.r.id} ${x.r.text} ${x.r.feature} ${x.items.map(i => i.Key + " " + i.Summary).join(" ")}`.toLowerCase().includes(q)));
+  $("rtmMatrix").innerHTML = `<table class="rtm"><thead><tr><th>ID</th><th>Requirement</th><th>Priority</th><th>User stories <span class="sub">(solid = confirmed, dashed = suggested)</span></th><th>Coverage</th><th>Delivery</th><th class="num">Defects<br><span class="sub">open / all</span></th><th>Tested by</th><th></th></tr></thead><tbody>` +
+    e.features.map(f => { const fr = shown.filter(x => featOf(x.r) === f.name); if(!fr.length) return "";
+      return `<tr class="rtm-feature"><td colspan="9">${esc(f.name)} <span class="sub">→ Jira: </span>${f.map.keys.length ? f.map.keys.map(k => jiraFeatLabel(e, k)).join(", ") : `<span style="color:#e5484d">no Jira feature</span>`}
+        <span class="sub"> · ${covered(f.rows)}/${f.rows.length} covered</span></td></tr>` +
         fr.map(x => `<tr id="rtm-${esc(x.r.id)}" data-req="${esc(x.r.id)}"><td><b>${esc(x.r.id)}</b></td>
           <td class="wrap" contenteditable="true" data-rtm-edit="text" spellcheck="false">${esc(x.r.text)}</td>
           <td contenteditable="true" data-rtm-edit="priority" class="sub">${esc(x.r.priority || "")}</td>
-          <td class="wrap">${x.linked.map(k => chip(k, "linked")).join("")}${x.suggested.map(s => chip(s.key, s.score >= AUTO ? "auto" : "suggested", s.score)).join("")}
-            <input class="rtm-add" data-rtm-add placeholder="+ ticket key" size="10"></td>
-          <td>${statusPill(x.status)}</td>
+          <td class="wrap">${storyChips(x)}<input class="rtm-add" data-rtm-add placeholder="+ story key" size="10"></td>
+          <td>${x.status === "Missed" ? statusPill("Missed") : `<span class="pill" style="background:var(--b-done)">${x.linked.length ? "Covered" : "Covered?"}</span>`}</td>
+          <td>${x.status === "Missed" ? "" : statusPill(x.status)}</td>
           <td class="num">${x.defects.length ? dl(`${x.open.length} / ${x.defects.length}`, {keys: x.defects.map(d => d.Key)}, `${x.r.id} · defects`) : `<span class="sub">0</span>`}</td>
           <td>${esc(x.tested)}</td><td><button type="button" class="x" data-rtm-del title="Delete requirement">🗑</button></td></tr>`).join(""); }).join("") +
     `</tbody></table>` + (shown.length ? "" : `<p class="hint">No requirements match.</p>`);
 
-  $("rtmUntraced").innerHTML = e.untraced.length ? `<p class="hint" style="margin-top:0">Tickets in ${esc(service)} that no requirement points to — possible scope creep, or requirements missing from the PRD.</p>` +
-    `<table><thead><tr><th>Ticket</th><th>Summary</th><th>Bucket</th><th>Assignee</th></tr></thead><tbody>` +
-    e.untraced.slice(0, 300).map(i => `<tr><td><a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(i.Key)}</a></td><td class="wrap">${esc(i.Summary)}</td><td>${pill(i.Bucket)}</td><td>${esc(i.Assignee)}</td></tr>`).join("") + `</tbody></table>`
-    : `<p class="hint">Every ticket in this service traces to a requirement.</p>`;
+  // Jira work the PRD doesn't ask for.
+  const byFeat = new Map(); e.untraced.forEach(i => { const k = i._feature || ""; byFeat.set(k, [...(byFeat.get(k) || []), i]); });
+  $("rtmUntraced").innerHTML = (e.unmappedJira.length ? `<p style="margin-top:0"><b>Jira features not in the PRD</b> <span class="sub">— no PRD feature is mapped to these</span></p><div style="margin-bottom:12px">` +
+      e.unmappedJira.map(f => `<span class="rtm-chip">${jiraFeatLabel(e, f.key)} <span class="sub">${f.stories.length} stories</span></span>`).join("") + `</div>` : "") +
+    (e.untraced.length ? `<p style="margin-top:0"><b>User stories not linked to any requirement</b> <span class="sub">— possible scope creep, or a requirement missing from the PRD</span></p>
+      <table><thead><tr><th>Story</th><th>Summary</th><th>Jira feature</th><th>Bucket</th><th>Assignee</th></tr></thead><tbody>` +
+      [...byFeat].flatMap(([k, list]) => list.slice(0, 200).map(i => `<tr><td><a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(i.Key)}</a></td><td class="wrap">${esc(i.Summary)}</td>
+        <td class="wrap sub">${k ? jiraFeatLabel(e, k) : "—"}</td><td>${pill(i.Bucket)}</td><td>${esc(i.Assignee)}</td></tr>`)).join("") + `</tbody></table>`
+      : `<p class="hint">Every user story in this service traces to a PRD requirement.</p>`);
 }
 
 // ---- editing ----
 function rtmDoc(){ return RTM[rtmService]; }
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-rtm-svc],[data-rtm-accept],[data-rtm-reject],[data-rtm-unlink],[data-rtm-del]"); if(!t) return;
+  const t = e.target.closest("[data-rtm-svc],[data-rtm-accept],[data-rtm-reject],[data-rtm-unlink],[data-rtm-del],[data-rtm-faccept],[data-rtm-fremove]"); if(!t) return;
   if(t.dataset.rtmSvc !== undefined){ rtmService = t.dataset.rtmSvc; return renderRtm(); }
+  const feat = t.closest("tr")?.dataset.feat;
+  if(feat !== undefined && (t.dataset.rtmFaccept || t.dataset.rtmFremove)){
+    const doc = rtmDoc(), cur = rtmEvaluate(rtmService).fmap[feat].keys;
+    doc.featureMap = doc.featureMap || {};
+    doc.featureMap[feat] = t.dataset.rtmFremove ? cur.filter(k => k !== t.dataset.rtmFremove) : [...cur];
+    saveRtm(rtmService); return renderRtm();
+  }
   const doc = rtmDoc(), id = t.closest("tr")?.dataset.req; if(!doc || !id) return;
   const list = (o, k) => (o[k] = o[k] || []);
   if(t.dataset.rtmAccept){ list(doc.links, id).push(t.dataset.rtmAccept); }
@@ -2408,6 +2519,13 @@ document.addEventListener("keydown", e => {
     saveRtm(rtmService); renderRtm();
   }
   if(t.dataset && t.dataset.rtmEdit && e.key === "Enter"){ e.preventDefault(); t.blur(); }
+});
+document.addEventListener("change", e => {
+  const t = e.target; if(!t.dataset || t.dataset.rtmFadd === undefined || !t.value) return;
+  const doc = rtmDoc(), feat = t.closest("tr").dataset.feat, cur = rtmEvaluate(rtmService).fmap[feat].keys;
+  doc.featureMap = doc.featureMap || {};
+  doc.featureMap[feat] = [...cur, t.value];
+  saveRtm(rtmService); renderRtm();
 });
 document.addEventListener("focusout", e => {
   const t = e.target; if(!t.dataset || !t.dataset.rtmEdit) return;
@@ -2449,19 +2567,23 @@ $("rtmAddReq").onclick = () => {
 };
 $("rtmAcceptAll").onclick = () => {
   const e = rtmEvaluate(rtmService); if(!e) return; let n = 0;
+  e.doc.featureMap = e.doc.featureMap || {};
+  e.features.forEach(f => { if(f.map.auto && f.map.keys.length){ e.doc.featureMap[f.name] = [...f.map.keys]; n++; } });
   e.rows.forEach(x => x.auto.forEach(k => { (e.doc.links[x.r.id] = e.doc.links[x.r.id] || []).push(k); n++; }));
-  saveRtm(rtmService); renderRtm(); toast(`Confirmed ${n} strong suggestion${n === 1 ? "" : "s"} (match ≥ ${Math.round(AUTO * 100)}%).`);
+  saveRtm(rtmService); renderRtm(); toast(`Confirmed ${n} strong suggestion${n === 1 ? "" : "s"} (feature matches, and story matches ≥ ${Math.round(AUTO * 100)}%).`);
 };
 $("rtmRemove").onclick = async () => {
   if(!confirm(`Remove the PRD and all requirement links for ${rtmService}?`)) return;
   delete RTM[rtmService]; await api("/api/rtm/save", {service: rtmService, delete: true}); renderRtm();
 };
-$("rtmCsv").onclick = () => {
-  const rows = rtmService ? [[rtmService, rtmEvaluate(rtmService)]] : rtmServices().filter(s => RTM[s]).map(s => [s, rtmEvaluate(s)]);
-  downloadCsv("traceability_matrix.csv", ["Service","Feature","Requirement ID","Requirement","Priority","Status","Linked tickets","Ticket statuses","Open defects","All defects","Tested by"],
-    rows.flatMap(([s, e]) => e.rows.map(x => [s, x.r.feature, x.r.id, x.r.text, x.r.priority, x.status, x.items.map(i => i.Key).join(" "),
-      x.items.map(i => `${i.Key}: ${i.Status}`).join("; "), x.open.map(d => d.Key).join(" "), x.defects.map(d => d.Key).join(" "), x.tested])));
-};
+const rtmCsvRow = (s, e, x) => [s, featOf(x.r), x.jf.map(k => `${k} ${(e.jira.features.find(f => f.key === k) || {}).summary || ""}`.trim()).join("; "),
+  x.r.id, x.r.text, x.r.priority, x.status === "Missed" ? "Missed" : x.linked.length ? "Covered" : "Covered (suggested)",
+  x.items.map(i => i.Key).join(" "), x.items.map(i => `${i.Key}: ${i.Status}`).join("; "), x.status === "Missed" ? "" : x.status,
+  x.open.map(d => d.Key).join(" "), x.defects.map(d => d.Key).join(" "), x.tested];
+const RTM_CSV_HEAD = ["Service","PRD feature","Jira feature","Requirement ID","Requirement","Priority","Coverage","User stories","Story statuses","Delivery","Open defects","All defects","Tested by"];
+const rtmCsvScope = () => rtmService ? [[rtmService, rtmEvaluate(rtmService)]] : rtmServices().filter(s => RTM[s]).map(s => [s, rtmEvaluate(s)]);
+$("rtmCsv").onclick = () => downloadCsv("traceability_matrix.csv", RTM_CSV_HEAD, rtmCsvScope().flatMap(([s, e]) => e.rows.map(x => rtmCsvRow(s, e, x))));
+$("rtmMissedCsv").onclick = () => downloadCsv("missed_requirements.csv", RTM_CSV_HEAD, rtmCsvScope().flatMap(([s, e]) => e.missed.map(x => rtmCsvRow(s, e, x))));
 $("rtmSearch").oninput = () => renderRtm();
 $("rtmStatus").onchange = () => renderRtm();
 

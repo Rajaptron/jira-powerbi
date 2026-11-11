@@ -24,18 +24,25 @@ NOUNS = ["template picker", "publish webhook", "form validation", "conversion re
 # A "Service" custom field that groups components differently, plus a "Team" field.
 SERVICE_FIELD = {"Page Builder": "Builder Platform", "Publishing": "Builder Platform", "Forms & Leads": "Lead Capture",
                  "Analytics": "Insights", "Billing": "Billing and Metering (BMS)", "AI Copywriter": "AI Services"}
-# What each service's tickets are about (so a PRD can be matched against them).
-TOPICS = {
-    "Billing": ["invoice PDF for successful payments", "invoice download page", "tax and discount lines on invoices",
-                "usage limit warning at 80 percent", "usage limits on the dashboard", "card payment webhook",
-                "update saved card", "enterprise invoice payments", "refund flow", "billing address on invoices"],
-    "Forms & Leads": ["drag and drop form fields", "email field validation", "lead CSV export", "UTM parameters in lead export",
-                      "form spam protection", "form templates", "reorder form fields"],
-    "Page Builder": ["template picker", "undo and redo", "section copy paste", "mobile preview", "image cropping"],
-    "Publishing": ["publish webhook", "custom domain mapping", "SSL certificates", "scheduled publishing"],
-    "Analytics": ["conversion report", "A/B test toggle", "traffic sources chart", "CSV report export"],
-    "AI Copywriter": ["headline generator", "tone of voice setting", "copy suggestions", "AI usage credits"],
+# Each service is an Epic, split into Features (high-level PRD requirements); stories sit under a Feature and are
+# about one of its topics (so a PRD can be matched against them). A few PRD requirements are left without a story.
+FEATURE_TOPICS = {
+    "Billing": {"Invoices": ["invoice PDF for successful payments", "invoice download page", "tax and discount lines on invoices",
+                             "billing address on invoices"],
+                "Usage limits": ["usage limit warning at 80 percent"],
+                "Payment methods": ["card payment webhook", "update saved card"],
+                "Refunds": ["refund flow"]},
+    "Forms & Leads": {"Form builder": ["drag and drop form fields", "email field validation", "reorder form fields", "form templates"],
+                      "Lead export": ["lead CSV export"],
+                      "Spam protection": ["form spam protection"]},
+    "Page Builder": {"Templates": ["template picker"], "Editing": ["undo and redo", "section copy paste", "image cropping"],
+                     "Preview": ["mobile preview"]},
+    "Publishing": {"Domains": ["custom domain mapping", "SSL certificates"], "Publish flow": ["publish webhook", "scheduled publishing"]},
+    "Analytics": {"Reports": ["conversion report", "traffic sources chart", "CSV report export"], "Experiments": ["A/B test toggle"]},
+    "AI Copywriter": {"Copy generation": ["headline generator", "copy suggestions", "tone of voice setting"], "Credits": ["AI usage credits"]},
 }
+TOPICS = {svc: [t for ts in feats.values() for t in ts] for svc, feats in FEATURE_TOPICS.items()}
+FEATURE_OF = {(svc, t): f for svc, feats in FEATURE_TOPICS.items() for f, ts in feats.items() for t in ts}
 SPRINT_NOW = 42  # active sprint; two-week sprints
 
 
@@ -48,7 +55,6 @@ def sprint_dates(n, today):
 DEMO_ROLES = {"Priya Nair": "PM", "Maya Lopez": "BA", "Grace Kim": "BA", "Kannan S": "QA", "Neha Gupta": "QA",
               "Aarav Shah": "Dev", "Dev Patel": "Dev", "Sofia Chen": "Dev", "Liam O'Brien": "Dev", "Omar Haddad": "Dev"}
 BY_ROLE = {r: [p for p, x in DEMO_ROLES.items() if x == r] for r in ("PM", "BA", "QA", "Dev")}
-FEATURES = ["Checkout revamp", "Usage-based pricing", "Template marketplace", "Smart forms", "Reporting 2.0"]
 BUG_PATH = ["Ready for Development", "In Development", "Ready for Test", "In Testing", "Done"]
 
 
@@ -110,7 +116,7 @@ def generate(seed=7, cfg=None):
         s_start, s_end = sprint_dates(sprint_no, today) if in_sprint else ("", "")
         return {
             "Key": key, "Id": key.split("-")[1], "URL": "https://example.atlassian.net/browse/" + key,
-            "Summary": "%s %s" % (rnd.choice(VERBS), rnd.choice(TOPICS[service])),
+            "Summary": "%s %s" % (rnd.choice(VERBS), rnd.choice(TOPICS.get(service, NOUNS))),
             "Project": PROJECT_OF[service], "Service": service, "IssueType": itype,
             "Status": status, "StatusCategory": {"new": "To Do", "indeterminate": "In Progress", "done": "Done"}[cat],
             "StatusCategoryKey": cat, "Bucket": "", "Assignee": assignee, "Reporter": reporter, "Creator": reporter,
@@ -126,6 +132,14 @@ def generate(seed=7, cfg=None):
             "AgeDays": None if resolved else (today - created).days,
             "HoursLogged": 0.0, "OriginalEstimateHours": 0.0, "RemainingHours": 0.0, "Description": "",
         }
+
+    # Epic per service, Feature per group of topics: DEMO-1, DEMO-2, …
+    containers, next_key = {}, iter(range(1, 1000))
+    for svc, feats in FEATURE_TOPICS.items():
+        epic = "DEMO-%d" % next(next_key)
+        containers[svc] = (epic, svc, "Epic", "")
+        for f in feats:
+            containers[(svc, f)] = ("DEMO-%d" % next(next_key), f, "Feature", epic)
 
     stories = []
     for n in range(1, 241):
@@ -146,8 +160,9 @@ def generate(seed=7, cfg=None):
         issue = base(key, service, status, assignee, people["ba"], created, resolved, rnd.choice(["Story", "Story", "Story", "Task"]),
                      float(rnd.choice([1, 2, 3, 3, 5, 5, 8, 13])), sprint_no, in_sprint)
         issue["Description"] = "As a user I want to %s so that my work is faster. Acceptance: works on desktop and mobile." % issue["Summary"].lower()
-        issue["Parent"] = "EPIC-%d %s" % (FEATURES.index(f) + 1, f) if (f := rnd.choice(FEATURES + [""])) else ""
-        issue["ParentKey"] = issue["Parent"].split(" ")[0] if issue["Parent"] else ""
+        topic = next((t for t in TOPICS[service] if issue["Summary"].endswith(" " + t)), "")
+        fkey, fname, _, _ = containers[(service, FEATURE_OF[(service, topic)])]
+        issue["Parent"], issue["ParentKey"] = "%s %s" % (fkey, fname), fkey
         if started:
             for _ in range(rnd.randint(1, 6)):
                 day = created + dt.timedelta(days=rnd.randint(0, max(1, ((resolved or today) - created).days)))
@@ -186,6 +201,22 @@ def generate(seed=7, cfg=None):
             bend = dt.datetime.combine(resolved, dt.time(17)) if resolved else now - dt.timedelta(hours=2)
             add(bug, _history(rnd, created_dt, max(bend, created_dt + dt.timedelta(hours=2)), status, people, rnd.random() < 0.15,
                               path=BUG_PATH), created_dt, resolved)
+
+    # The Epic and Feature issues themselves.
+    for (fkey, name, itype, parent_key), svc in ((v, k if isinstance(k, str) else k[0]) for k, v in containers.items()):
+        kids = [st for st, *_ in stories if st["ParentKey"] == fkey] if itype == "Feature" else \
+               [st for st, *_ in stories if st["Service"] == svc]
+        status = "Done" if kids and all(k["Status"] == "Done" for k in kids) else ("In Development" if kids else "Ready for Refinement")
+        created = today - dt.timedelta(days=160)
+        resolved = max(dt.date.fromisoformat(k["Resolved"]) for k in kids) if status == "Done" else None
+        people = {"ba": BY_ROLE["BA"][0], "pm": BY_ROLE["PM"][0], "qa": BY_ROLE["QA"][0], "dev": BY_ROLE["Dev"][0]}
+        item = base(fkey, svc, status, "Unassigned", BY_ROLE["PM"][0], created, resolved, itype, 0.0, SPRINT_NOW, False)
+        item["Summary"] = name
+        if parent_key:
+            item["Parent"], item["ParentKey"] = "%s %s" % (parent_key, svc), parent_key
+        start = dt.datetime.combine(created, dt.time(9))
+        end = dt.datetime.combine(resolved, dt.time(17)) if resolved else now - dt.timedelta(hours=3)
+        add(item, _history(rnd, start, end, status, people, False), start, resolved)
 
     data = {
         "meta": {"refreshed_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
