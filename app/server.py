@@ -214,10 +214,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 client = JiraClient(cfg["jira_url"], cfg.get("email", ""), cfg["token"])
                 me = client.myself()
+                note = ""
+                if client.base_url != cfg["jira_url"].strip().rstrip("/"):
+                    # http:// → https://, or a renamed site: save the real address so searches aren't redirected.
+                    cfg["jira_url"] = client.base_url
+                    save_config(cfg)
+                    note = " Jira URL updated to %s." % client.base_url
                 projects = sorted(({"key": p["key"], "name": p["name"]} for p in client.projects()),
                                   key=lambda p: p["key"])
                 fields = sorted(f["name"] for f in client.fields() if f.get("custom"))
-                return self._send(200, {"ok": True, "user": me.get("displayName"),
+                return self._send(200, {"ok": True, "user": (me.get("displayName") or "") + note,
                                         "projects": projects, "custom_fields": fields})
             except (JiraError, KeyError) as e:
                 return self._send(200, {"ok": False, "error": str(e) or "Jira URL and token are required."})

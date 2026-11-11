@@ -15,6 +15,25 @@ class JiraError(Exception):
         self.status = status
 
 
+class _FollowRedirects(urllib.request.HTTPRedirectHandler):
+    """
+    urllib turns a redirected POST into an empty GET, so Jira would see a search with no JQL ("unbounded").
+    Re-send the same method, body and headers instead — but only within Atlassian Cloud or the same host,
+    so the API token is never sent anywhere else.
+    """
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        old, new = urllib.parse.urlparse(req.full_url), urllib.parse.urlparse(newurl)
+        trusted = (new.netloc == old.netloc and new.scheme in (old.scheme, "https")) or \
+                  (new.scheme == "https" and new.netloc.endswith(".atlassian.net"))
+        if not trusted:
+            raise JiraError("Jira redirected to %s://%s, which isn't an Atlassian site, so the app stopped. "
+                            "Check the Jira URL in Settings." % (new.scheme, new.netloc))
+        return urllib.request.Request(newurl, data=req.data, method=req.get_method(),
+                                      headers={k: v for k, v in req.header_items() if k.lower() != "host"})
+
+    http_error_307 = http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
+
+
 class JiraClient:
     def __init__(self, base_url, email, token, timeout=60):
         self.base_url = base_url.strip().rstrip("/")
@@ -24,6 +43,9 @@ class JiraClient:
         parsed = urllib.parse.urlparse(self.base_url)
         self.base_url = "%s://%s" % (parsed.scheme, parsed.netloc)
         self.is_cloud = parsed.netloc.endswith(".atlassian.net")
+        if self.is_cloud:  # Jira Cloud is https-only; an http:// address would redirect on every call
+            self.base_url = "https://" + parsed.netloc.lower()
+        self.moved_to = None  # set when Jira redirects to another address (e.g. a renamed site)
         self.api = "/rest/api/3" if self.is_cloud else "/rest/api/2"
         self.timeout = timeout
         if email:
@@ -33,6 +55,7 @@ class JiraClient:
             # Server/Data Center personal access token.
             self.auth_header = "Bearer " + token.strip()
         self._ctx = ssl.create_default_context()
+        self._opener = urllib.request.build_opener(_FollowRedirects(), urllib.request.HTTPSHandler(context=self._ctx))
 
     # ---------- low level ----------
     def _request(self, method, path, params=None, body=None):
@@ -48,7 +71,11 @@ class JiraClient:
             if data is not None:
                 req.add_header("Content-Type", "application/json")
             try:
-                with urllib.request.urlopen(req, timeout=self.timeout, context=self._ctx) as resp:
+                with self._opener.open(req, timeout=self.timeout) as resp:
+                    final = urllib.parse.urlparse(resp.geturl())
+                    origin = "%s://%s" % (final.scheme, final.netloc)
+                    if origin != self.base_url:  # remember the real address so later calls go there directly
+                        self.base_url = self.moved_to = origin
                     payload = resp.read()
                     if resp.headers.get("Content-Encoding") == "gzip":
                         payload = gzip.decompress(payload)
