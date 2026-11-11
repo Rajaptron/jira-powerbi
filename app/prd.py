@@ -1,7 +1,9 @@
 """Read a PRD (Word, PDF, Markdown or text) and pull out its features and requirements."""
+import html
 import io
 import re
 import zipfile
+from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -102,6 +104,103 @@ def blocks_from_pdf(data):
         else:
             merged.append(s)
     return blocks_from_text("\n".join(merged), markdown=False)
+
+
+class _StorageReader(HTMLParser):
+    """Confluence "storage format" (XHTML plus ac:/ri: macro tags) -> the same blocks as a Word file."""
+    HIDDEN = ("ac:plain-text-body", "ac:task-id", "ac:task-status", "ac:placeholder", "style", "script")
+    BLOCK = {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "ac:task-body", "blockquote", "pre"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.buf, self.stack = [], [], []  # stack of open block tags
+        self.row, self.skip, self.macro, self.params = None, 0, [], []
+
+    def _flush(self):
+        text = re.sub(r"\s+", " ", "".join(self.buf)).strip()
+        self.buf = []
+        if not text or not self.stack or "td" in self.stack or "th" in self.stack:
+            return text  # text in a table cell becomes part of the row
+        tag = self.stack[-1]
+        if tag[0] == "h" and tag[1:].isdigit():
+            self.out.append(("heading", int(tag[1:]), text))
+        elif tag in ("li", "ac:task-body") or "li" in self.stack:
+            self.out.append(("item", 0, text))
+        else:
+            self.out.append(("para", 0, text))
+        return text
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "ac:structured-macro":
+            self.macro.append(a.get("ac:name", ""))
+        if tag == "ac:parameter":
+            # Macro settings aren't content — except the Jira macro's issue key, which is a link to a ticket.
+            keep = bool(self.macro) and self.macro[-1] == "jira" and a.get("ac:name") == "key"
+            self.params.append(keep)
+            self.skip += 0 if keep else 1
+            self.buf.append(" ")
+            return
+        if tag in self.HIDDEN:
+            self.skip += 1
+        if tag == "tr":
+            self.row = []
+        elif tag in ("td", "th"):
+            self.buf = []
+            self.stack.append(tag)
+        elif tag in self.BLOCK:
+            if self.stack:
+                text = self._flush()  # e.g. text of a list item before its nested list
+                if text and ("td" in self.stack or "th" in self.stack):
+                    self.buf.append(text + " ")
+            self.stack.append(tag)
+        elif tag == "br":
+            self.buf.append(" ")
+
+    def handle_endtag(self, tag):
+        if tag == "ac:structured-macro" and self.macro:
+            self.macro.pop()
+        if tag == "ac:parameter":
+            if self.params and not self.params.pop():
+                self.skip = max(0, self.skip - 1)
+            self.buf.append(" ")
+            return
+        if tag in self.HIDDEN:
+            self.skip = max(0, self.skip - 1)
+        if tag in ("td", "th") and tag in self.stack:
+            text = self._flush()
+            while self.stack and self.stack.pop() != tag:
+                pass
+            if self.row is not None:
+                self.row.append(text)
+            elif self.stack and self.stack[-1] in ("td", "th"):
+                self.buf.append(text + " ")
+        elif tag in self.BLOCK and tag in self.stack:
+            text = self._flush()
+            while self.stack and self.stack.pop() != tag:
+                pass
+            if text and ("td" in self.stack or "th" in self.stack):
+                self.buf.append(text + " ")  # paragraphs and bullets inside a table cell join the cell text
+        elif tag == "tr" and self.row is not None:
+            if any(self.row):
+                self.out.append(("row", 0, self.row))
+            self.row = None
+        elif tag == "table":
+            self.out.append(("endtable", 0, ""))
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.buf.append(data)
+
+    def handle_entityref(self, name):
+        self.handle_data(html.unescape("&%s;" % name))
+
+
+def blocks_from_confluence(storage):
+    reader = _StorageReader()
+    reader.feed(storage)
+    reader.close()
+    return reader.out
 
 
 def read_blocks(filename, data):
@@ -221,7 +320,16 @@ def _priority(text):
 
 
 def parse(filename, data):
-    result = extract(read_blocks(filename, data))
+    return _checked(extract(read_blocks(filename, data)))
+
+
+def parse_confluence(storage):
+    if not storage.strip():
+        raise ValueError("That Confluence page is empty (or only holds content the app can't read, like an embedded file).")
+    return _checked(extract(blocks_from_confluence(storage)))
+
+
+def _checked(result):
     if not result["requirements"]:
         raise ValueError("I couldn't find requirements in this document. Requirements are picked up from requirement "
                          "tables, numbered ids (REQ-1, FR-2.1…), and bullet points under headings like "

@@ -128,6 +128,19 @@ def start_refresh(use_demo=False, scope=None, full=False):
     return True
 
 
+def store_prd(service, parsed, source):
+    """Saves a service's PRD requirements; links and rejections survive for requirement ids that still exist."""
+    rtm, service = load_rtm(), service or "(All)"
+    old = rtm.get(service) or {}
+    ids = {r["id"] for r in parsed["requirements"]}
+    rtm[service] = dict(source, uploaded_at=time.strftime("%Y-%m-%d %H:%M"),
+                        features=parsed["features"], requirements=parsed["requirements"],
+                        links={k: v for k, v in (old.get("links") or {}).items() if k in ids},
+                        rejected={k: v for k, v in (old.get("rejected") or {}).items() if k in ids})
+    save_rtm(rtm)
+    return rtm[service]
+
+
 def _jira_login():
     cfg = load_config()
     if not cfg.get("jira_url") or not cfg.get("token"):
@@ -234,15 +247,17 @@ class Handler(BaseHTTPRequestHandler):
                 parsed = prd.parse(body.get("filename", ""), data)
             except (ValueError, KeyError, zipfile.BadZipFile) as e:
                 return self._send(200, {"ok": False, "error": str(e) or "That file couldn't be read."})
-            rtm, service = load_rtm(), body.get("service") or "(All)"
-            old = rtm.get(service) or {}
-            ids = {r["id"] for r in parsed["requirements"]}
-            rtm[service] = {"file": body.get("filename", ""), "uploaded_at": time.strftime("%Y-%m-%d %H:%M"),
-                            "features": parsed["features"], "requirements": parsed["requirements"],
-                            "links": {k: v for k, v in (old.get("links") or {}).items() if k in ids},
-                            "rejected": {k: v for k, v in (old.get("rejected") or {}).items() if k in ids}}
-            save_rtm(rtm)
-            return self._send(200, {"ok": True, "rtm": rtm[service]})
+            return self._send(200, {"ok": True, "rtm": store_prd(body.get("service"), parsed, {"file": body.get("filename", "")})})
+        if path == "/api/rtm/confluence":
+            # Same as an upload, but the PRD is read live from a Confluence page with the Jira login.
+            try:
+                page = JiraClient(*_jira_login()).confluence_page(body.get("url") or "")
+                parsed = prd.parse_confluence(page["storage"])
+            except (ValueError, JiraError) as e:
+                return self._send(200, {"ok": False, "error": str(e)})
+            source = {"file": "Confluence: %s" % (page["title"] or "page"), "source_url": page["url"],
+                      "page_version": page.get("version")}
+            return self._send(200, {"ok": True, "rtm": store_prd(body.get("service"), parsed, source)})
         if path == "/api/rtm/save":
             rtm = load_rtm()
             if body.get("delete"):

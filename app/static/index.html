@@ -374,7 +374,12 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
             <button type="button" id="rtmRemove" class="rtm-needs-doc">Remove PRD</button>
           </div>
         </div>
-        <p class="hint cap" id="rtmUploadMsg" style="margin:8px 0 0">Upload the PRD as Word (.docx), PDF, Markdown or text. Requirements are read from requirement tables, ids like REQ-1 / FR-2.1, and bullet points under "Requirements" / "Features" headings.</p>
+        <form id="rtmConfForm" class="cap" style="display:flex;gap:8px;align-items:center;margin:10px 0 0">
+          <input type="url" id="rtmConfUrl" placeholder="…or paste the PRD's Confluence page link, e.g. https://yoursite.atlassian.net/wiki/spaces/KEY/pages/123456/PRD" style="flex:1;min-width:0;width:auto">
+          <button type="submit" class="primary">Read from Confluence</button>
+          <button type="button" id="rtmConfReload" class="hidden" title="Read the latest version of the same Confluence page">⟳ Re-read page</button>
+        </form>
+        <p class="hint cap" id="rtmUploadMsg" style="margin:8px 0 0">Upload the PRD as Word (.docx), PDF, Markdown or text, or read it straight from Confluence (uses your Jira login; the page must be on the same Atlassian site). Requirements are read from requirement tables, ids like REQ-1 / FR-2.1, and bullet points under "Requirements" / "Features" headings.</p>
       </div>
       <div class="kpis rtm-needs-doc" id="rtmKpis"></div>
       <div class="grid2 rtm-needs-doc">
@@ -2247,7 +2252,9 @@ function rtmMatch(service, doc){
   doc.requirements.forEach(r => {
     const rv = idx.vec(`${r.text} ${r.feature}`), linked = new Set(doc.links[r.id] || []), rejected = new Set(doc.rejected[r.id] || []);
     const safeId = r.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), idRe = new RegExp("\\b" + safeId + "\\b", "i");
+    const named = new Set((`${r.text} ${r.feature}`.toUpperCase().match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || []));
     const scored = idx.docs.map(d => { let s = 0; rv.forEach((x, w) => { s += x * (d.v.get(w) || 0); });
+      if(named.has(d.i.Key)) return {key: d.i.Key, score: 1, why: "named in the PRD"};
       const byId = !/^REQ-\d{3}$/.test(r.id) && idRe.test(`${d.i.Summary} ${d.i.Description || ""} ${d.i.Labels || ""}`);
       return {key: d.i.Key, score: byId ? 1 : s, why: byId ? "mentions " + r.id : "similar wording"}; })
       .filter(x => x.score >= 0.18 && !linked.has(x.key) && !rejected.has(x.key)).sort((a, b) => b.score - a.score).slice(0, 3);
@@ -2323,7 +2330,12 @@ function renderRtmOverview(services){
 function renderRtmService(service){
   const e = rtmEvaluate(service);
   $("rtmSvcTitle").textContent = service;
-  $("rtmSvcFile").textContent = e ? `${e.doc.file || "Requirements added by hand"} · uploaded ${e.doc.uploaded_at || ""}` : "No PRD uploaded yet for this service.";
+  const d = e && e.doc, src = d && d.source_url;
+  $("rtmSvcFile").innerHTML = !e ? "No PRD uploaded yet for this service."
+    : (src ? `<a href="${esc(src)}" target="_blank" rel="noopener">${esc(d.file)}</a>${d.page_version ? ` (version ${esc(d.page_version)})` : ""} · read ${esc(d.uploaded_at || "")}`
+           : `${esc(d.file || "Requirements added by hand")} · uploaded ${esc(d.uploaded_at || "")}`);
+  $("rtmConfReload").classList.toggle("hidden", !src);
+  if(document.activeElement !== $("rtmConfUrl")) $("rtmConfUrl").value = src || "";
   ["rtmKpis", "rtmMap", "rtmFeatures", "rtmMatrix", "rtmUntraced"].forEach(id => $(id).innerHTML = "");
   document.querySelectorAll("#rtmService .rtm-needs-doc").forEach(p => p.classList.toggle("hidden", !e));
   if(!e) return;
@@ -2413,6 +2425,18 @@ async function uploadPrd(file){
   msg.textContent = `Found ${r.rtm.requirements.length} requirements in ${r.rtm.features.length} features. Review the suggested links below — ✓ to confirm, × to reject.`;
   renderRtm();
 }
+async function readConfluence(url){
+  const msg = $("rtmUploadMsg"); url = (url || "").trim();
+  if(!url){ msg.innerHTML = `<span style="color:var(--warn)">Paste the Confluence page link first.</span>`; return; }
+  msg.textContent = "Reading the page from Confluence…";
+  const r = await api("/api/rtm/confluence", {service: rtmService, url});
+  if(!r.ok){ msg.innerHTML = `<span style="color:var(--warn)">${esc(r.error)}</span>`; return; }
+  RTM[rtmService] = r.rtm;
+  msg.textContent = `Found ${r.rtm.requirements.length} requirements in ${r.rtm.features.length} features on “${r.rtm.file.replace(/^Confluence: /, "")}”. Review the suggested links below — ✓ to confirm, × to reject. Click ⟳ Re-read page after the PRD changes.`;
+  renderRtm();
+}
+$("rtmConfForm").onsubmit = e => { e.preventDefault(); readConfluence($("rtmConfUrl").value); };
+$("rtmConfReload").onclick = () => readConfluence(rtmDoc()?.source_url);
 $("rtmFile").onchange = e => { if(e.target.files[0]) uploadPrd(e.target.files[0]); e.target.value = ""; };
 $("rtmAddReq").onclick = () => {
   if(!rtmDoc()) RTM[rtmService] = {file:"", uploaded_at:"", features:[], requirements:[], links:{}, rejected:{}};

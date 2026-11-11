@@ -2,6 +2,7 @@
 import base64
 import gzip
 import json
+import re
 import ssl
 import time
 import urllib.error
@@ -243,3 +244,77 @@ class JiraClient:
             start += len(logs)
             if not logs or start >= page.get("total", 0):
                 return out
+
+    # ---------- Confluence (same Atlassian site and login as Jira) ----------
+    def confluence_page(self, page_url):
+        """Reads a Confluence page from its browser URL. Returns {title, storage, version, url}."""
+        url = page_url.strip()
+        if not url.startswith("http"):
+            url = "https://" + url
+        parsed = urllib.parse.urlparse(url)
+        site = urllib.parse.urlparse(self.base_url).netloc
+        if parsed.netloc.lower() != site.lower():
+            # The API token is only ever sent to the Jira site you connected to.
+            raise JiraError("That page is on %s, but you're connected to %s. Only Confluence pages on the same "
+                            "Atlassian site can be read — for other sites, export the page as Word or PDF and "
+                            "upload it instead." % (parsed.netloc or "an unknown site", site))
+        path = urllib.parse.unquote(parsed.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        m = re.search(r"/(spaces|pages|display|x)/", path)
+        prefix = path[:m.start()] if m else ("/wiki" if self.is_cloud else "")
+        page_id = (query.get("pageId") or [None])[0]
+        blog = "/blog/" in path
+        m_id = re.search(r"/(?:pages|blog)/(?:edit-v2/|edit-embed/)?(?:\d{4}/\d{2}/\d{2}/)?(\d+)", path)
+        m_tiny = re.search(r"/x/([A-Za-z0-9_-]+)", path)
+        m_title = re.search(r"/display/([^/]+)/([^/]+)", path)
+        if not page_id and m_id:
+            page_id = m_id.group(1)
+        if not page_id and m_tiny:
+            page_id = str(_tiny_to_id(m_tiny.group(1)))
+        try:
+            if page_id:
+                return self._confluence_by_id(prefix, page_id, blog, url)
+            if m_title:
+                return self._confluence_by_title(prefix, m_title.group(1), m_title.group(2).replace("+", " "), url)
+        except JiraError as e:
+            if e.status == 404:
+                raise JiraError("Confluence page not found, or your account can't see it. Open the link in your "
+                                "browser to check, then copy the address from the address bar.", 404)
+            if e.status in (401, 403):
+                raise JiraError("Confluence refused access (%s). Your login works for Jira, but this account may not "
+                                "have Confluence access or permission to view this page." % e.status, e.status)
+            raise
+        raise JiraError("That doesn't look like a Confluence page link. Open the PRD page in Confluence and copy the "
+                        "address from the browser — it looks like …/wiki/spaces/KEY/pages/123456/Page+Title")
+
+    def _confluence_by_id(self, prefix, page_id, blog, url):
+        if self.is_cloud:
+            try:
+                kind = "blogposts" if blog else "pages"
+                page = self.get("%s/api/v2/%s/%s" % (prefix, kind, page_id), {"body-format": "storage"})
+                return {"title": page.get("title", ""), "storage": ((page.get("body") or {}).get("storage") or {}).get("value", ""),
+                        "version": (page.get("version") or {}).get("number"), "url": url, "id": page_id}
+            except JiraError as e:
+                if e.status in (401, 403, 404):
+                    raise
+        page = self.get("%s/rest/api/content/%s" % (prefix, page_id), {"expand": "body.storage,version"})
+        return self._confluence_v1(page, url)
+
+    def _confluence_by_title(self, prefix, space, title, url):
+        found = self.get("%s/rest/api/content" % prefix, {"spaceKey": space, "title": title, "expand": "body.storage,version"})
+        pages = found.get("results") or []
+        if not pages:
+            raise JiraError("No page called '%s' in space %s." % (title, space), 404)
+        return self._confluence_v1(pages[0], url)
+
+    @staticmethod
+    def _confluence_v1(page, url):
+        return {"title": page.get("title", ""), "storage": ((page.get("body") or {}).get("storage") or {}).get("value", ""),
+                "version": (page.get("version") or {}).get("number"), "url": url, "id": page.get("id")}
+
+
+def _tiny_to_id(code):
+    """Confluence short links (/x/AbCd) are the page id, little-endian, in URL-safe base64."""
+    code = code.replace("-", "/").replace("_", "+")
+    raw = base64.b64decode((code + "A" * 12)[:max(12, (len(code) + 3) // 4 * 4)])
+    return int.from_bytes(raw, "little")

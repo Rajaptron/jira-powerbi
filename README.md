@@ -200,6 +200,13 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    all work. Requirements are read from requirement tables (ID / Requirement / Priority columns), ids such as
    `REQ-1`, `FR-2.1` and `US-04`, and bullet points under headings like "Requirements", "Features" or "User stories".
    Sections like Overview, Goals, Out of scope and Open questions are skipped, and each heading becomes a feature.
+
+   **PRD in Confluence?** Paste the page link (copy it from the browser's address bar) into the box under the
+   buttons and click **Read from Confluence**. The app reads the page with your Jira login, so the page must be on
+   the same Atlassian site as Jira (e.g. `https://yoursite.atlassian.net/wiki/spaces/KEY/pages/123456/…`; short
+   `/wiki/x/…` links work too), and your account needs permission to view it. Tables, bullets, task lists and info
+   panels are all read, and Jira issues embedded in the page are linked straight to those tickets. After the PRD
+   changes, click **⟳ Re-read page**; links you confirmed are kept for requirement ids that still exist.
 2. The app suggests the tickets that cover each requirement. It compares wording against ticket summaries,
    descriptions, labels and epics, and treats a ticket that mentions the requirement id as a sure match. Click ✓
    to confirm a suggestion or × to reject it, or type a ticket key to link one by hand. Suggestions at 45% or more
