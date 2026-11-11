@@ -24,9 +24,18 @@ def window_clause(cfg):
 
 
 def build_jql(cfg, projects=None):
-    if cfg.get("jql", "").strip():
-        return cfg["jql"].strip()
     projects = chosen_projects(cfg) if projects is None else projects
+    custom = cfg.get("jql", "").strip()
+    if custom:
+        # A custom JQL narrows the ticked projects. Jira Cloud refuses "unbounded" searches (no project or other
+        # restriction), so the project clause is added unless the JQL already names a project itself.
+        m = re.search(r"\s*\bORDER\s+BY\b.*$", custom, re.I | re.S)
+        body, order = (custom[:m.start()].strip(), m.group(0).strip()) if m else (custom, "ORDER BY updated DESC")
+        if projects and not re.search(r"\bproject\b", body, re.I):
+            body = 'project in (%s)%s' % (", ".join('"%s"' % p for p in projects), " AND (%s)" % body if body else "")
+        if not body:
+            raise ValueError("The custom JQL needs a condition (e.g. project = KEY), or tick a project in Settings.")
+        return body + " " + order
     if not projects:
         # Never fall back to "everything": on a big Jira that's tens of thousands of tickets.
         raise ValueError("Pick at least one project in Settings → What to pull (or enter a custom JQL).")

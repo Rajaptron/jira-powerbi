@@ -436,7 +436,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
         <label class="f">Include closed tickets updated in the last N days<input id="sDays" type="number" min="0"></label>
         <label class="f">Timesheet: worklogs from the last N days<input id="sWlDays" type="number" min="1"></label>
       </div>
-      <label class="f" style="margin-top:14px">Advanced: custom JQL (overrides projects + days)<input id="sJql" placeholder='project = AIB AND sprint in openSprints()'></label>
+      <label class="f" style="margin-top:14px">Advanced: extra JQL — narrows the ticked projects (replaces the "closed in last N days" rule)<input id="sJql" placeholder='sprint in openSprints() AND issuetype in (Story, Bug)'></label>
     </div>
     <div class="panel">
       <h2>3. Board setup — buckets and statuses</h2>
@@ -1990,7 +1990,8 @@ function estimatePull(){
   clearTimeout(estimateTimer);
   estimateTimer = setTimeout(async () => {
     const c = collectSettings(), el = $("sEstimate"), seq = ++estimateSeq;
-    if(c.jql){ el.textContent = "Using your custom JQL below instead of the project list."; return; }
+    if(c.jql && !c.projects.length){ el.textContent = "Using your custom JQL below (it must name a project itself)."; return; }
+    if(c.jql){ el.textContent = `Pulling ${c.projects.join(", ")} narrowed by your extra JQL below.`; return; }
     if(!c.projects.length){ el.innerHTML = `<span style="color:var(--warn)">Tick at least one project — nothing is pulled until you do.</span>`; return; }
     if(!CONFIG.has_token){ el.textContent = ""; return; }
     el.textContent = "Counting tickets…";

@@ -64,6 +64,10 @@ class JiraClient:
                     raise JiraError("Authentication failed (401). Check the email and API token.", 401)
                 if e.code == 403:
                     raise JiraError("Access denied (403). Your account can't read this data.", 403)
+                if e.code == 400 and "nbounded" in detail:
+                    jql = (body or {}).get("jql", "") if isinstance(body, dict) else ""
+                    raise JiraError("Jira refused this search because it isn't limited to a project: %s  — tick a project in "
+                                    "Settings → What to pull, or add e.g. project = KEY to the custom JQL." % jql, 400)
                 raise JiraError("Jira returned HTTP %s for %s: %s" % (e.code, path, detail), e.code)
             except urllib.error.URLError as e:
                 if attempt < 2:
