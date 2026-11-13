@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import board, demo, pipeline, prd
 from .excel_export import write_workbook
+from .rtm_export import rtm_workbook
 from .jira_client import JiraClient, JiraError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -281,6 +282,14 @@ class Handler(BaseHTTPRequestHandler):
             save_rtm(rtm)
             return self._send(200, {"ok": True, "rtm": doc, "sheet": found["sheet"], "matched": len(found["rows"]),
                                     "unknown": found["unknown"], "not_in_file": found["not_in_file"]})
+        if path == "/api/rtm/export.xlsx":
+            data = rtm_workbook(body)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", 'attachment; filename="traceability.xlsx"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return self.wfile.write(data)
         if path == "/api/rtm/save":
             rtm = load_rtm()
             if body.get("delete"):

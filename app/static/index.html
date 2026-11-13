@@ -165,6 +165,8 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
 .rtm-flow td{vertical-align:middle}
 .rtm-flow td.arrow{color:var(--muted);font-size:18px;text-align:center;padding:0 2px}
 #rtmListPanel{scroll-margin-top:110px}
+.rtm-frow-actions{display:flex;gap:4px;margin-top:4px}
+.rtm-frow-actions button{font-size:11px;padding:1px 6px}
 .rtm-note.box{border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:160px}
 [contenteditable="true"]:hover{outline:1px dashed var(--line);cursor:text}
 [contenteditable="true"]:focus{outline:2px solid var(--accent)}
@@ -373,7 +375,9 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <div class="seg rtm-strip" id="rtmStrip"></div>
     <div id="rtmOverview">
       <div class="kpis" id="rtmOvKpis"></div>
-      <div class="panel"><h2>Requirement traceability — all services</h2><div class="tbl-wrap" id="rtmOvTable"></div></div>
+      <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Requirement traceability — all services</h2>
+        <div class="cap" style="display:flex;gap:8px"><button type="button" data-rtm-xlsx>⬇ Excel (all services)</button><button type="button" data-rtm-pdf>⬇ PDF (all services)</button></div></div>
+        <div class="tbl-wrap" id="rtmOvTable"></div></div>
       <p class="hint">Pick a service above to upload its PRD and review the matrix. Tickets follow the <b>Service field</b> chosen in the filter bar.</p>
     </div>
     <div id="rtmService" class="hidden">
@@ -384,7 +388,9 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
             <label class="btn primary" style="cursor:pointer">⬆ Upload PRD<input type="file" id="rtmFile" accept=".docx,.pdf,.md,.markdown,.txt" hidden></label>
             <label class="btn rtm-needs-doc" style="cursor:pointer" title="Load the requirement → story links, coverage verdicts and gap notes from your own RTM spreadsheet">⬆ Import RTM (Excel/CSV)<input type="file" id="rtmImport" accept=".xlsx,.xlsm,.csv" hidden></label>
             <button type="button" id="rtmAddReq">+ Add requirement</button>
-            <button type="button" id="rtmCsv" class="rtm-needs-doc">Export (CSV)</button>
+            <button type="button" class="rtm-needs-doc" data-rtm-xlsx title="Summary, full traceability and not-covered sheets, formatted">⬇ Excel</button>
+            <button type="button" class="rtm-needs-doc" data-rtm-pdf title="Opens a print-ready report: choose “Save as PDF”">⬇ PDF</button>
+            <button type="button" id="rtmCsv" class="rtm-needs-doc">CSV</button>
             <button type="button" id="rtmRemove" class="rtm-needs-doc">Remove PRD</button>
           </div>
         </div>
@@ -400,6 +406,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
       <div class="rtm-big rtm-needs-doc" id="rtmBig"></div>
       <div class="panel rtm-needs-doc"><h2>How the PRD maps to Jira</h2>
         <div class="tbl-wrap" id="rtmFlow"></div>
+        <div class="cap" style="margin-top:10px"><button type="button" id="rtmAddFeat">+ Add PRD feature</button></div>
         <p class="hint">① each PRD requirement belongs to a PRD feature → ② that PRD feature is mapped to a Jira feature (× to remove, or pick the right one) → ③ the user stories under that Jira feature → ④ how many of the feature's requirements have a user story. Click a number to see those requirements.</p></div>
       <div class="panel rtm-needs-doc" id="rtmListPanel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -2279,7 +2286,8 @@ const NOFEAT = "(No feature)";
 const featOf = r => r.feature || NOFEAT;
 function prdFeatures(doc){
   const used = ordered(doc.requirements.map(featOf));
-  return [...doc.features.filter(f => used.includes(f)), ...used.filter(f => !doc.features.includes(f))];
+  const added = doc.extraFeatures || [];
+  return [...doc.features.filter(f => used.includes(f) || added.includes(f)), ...used.filter(f => !doc.features.includes(f))];
 }
 const CONTAINER = /epic|feature|initiative|theme|capabilit/i, SUBTASK = /sub-?task/i;
 // The service's Jira side: its user stories, and the Jira features they sit under (each story's parent issue —
@@ -2497,7 +2505,8 @@ function renderRtmService(service){
           `<button type="button" class="x" data-rtm-fremove="${esc(k)}" title="Not this feature">×</button></span>`; }).join("");
       const opts = f.map.ranked.filter(x => !used.has(x.key)).slice(0, 40).map(x => { const jf = e.jira.features.find(y => y.key === x.key);
         return `<option value="${esc(x.key)}">${esc(x.key)} · ${esc((jf.summary || "").slice(0, 60))}</option>`; }).join("");
-      return `<tr data-feat="${esc(f.name)}"><td><b>${esc(f.name)}</b><div class="sub">${f.rows.length} requirement${f.rows.length === 1 ? "" : "s"}</div></td><td class="arrow">→</td>
+      return `<tr data-feat="${esc(f.name)}"><td><b>${esc(f.name)}</b><div class="sub">${f.rows.length} requirement${f.rows.length === 1 ? "" : "s"}</div>
+        <div class="rtm-frow-actions cap"><button type="button" data-rtm-freq title="Add a requirement to this PRD feature">+ requirement</button><button type="button" data-rtm-fdel title="Remove this PRD feature and its requirements">🗑 remove</button></div></td><td class="arrow">→</td>
         <td class="wrap">${chips || `<span style="color:${RED}">Not mapped to a Jira feature</span><br>`}<select data-rtm-fadd style="max-width:220px;font-size:12px;padding:2px 4px"><option value="">${chips ? "+ add another…" : "+ pick the Jira feature…"}</option>${opts}</select></td>
         <td class="arrow">→</td>
         <td class="num">${st.length ? dl(st.length, {keys: st.map(s => s.Key)}, `${f.name} · user stories`) : `<span style="color:${RED}">0</span>`}</td>
@@ -2534,6 +2543,14 @@ function renderRtmService(service){
 // ---- editing ----
 function rtmDoc(){ return RTM[rtmService]; }
 document.addEventListener("click", e => {
+  const x = e.target.closest("[data-rtm-xlsx],[data-rtm-pdf],[data-rtm-freq],[data-rtm-fdel]");
+  if(x){
+    if(x.dataset.rtmXlsx !== undefined) return rtmExcel();
+    if(x.dataset.rtmPdf !== undefined) return rtmPdf();
+    const name = x.closest("tr").dataset.feat;
+    if(x.dataset.rtmFreq !== undefined) return rtmAddRequirement(name);
+    return rtmRemoveFeature(name);
+  }
   const t = e.target.closest("[data-rtm-svc],[data-rtm-show],[data-rtm-accept],[data-rtm-reject],[data-rtm-unlink],[data-rtm-del],[data-rtm-faccept],[data-rtm-fremove]"); if(!t) return;
   if(t.dataset.rtmSvc !== undefined){ rtmService = t.dataset.rtmSvc;
     if(t.dataset.rtmOpen) rtmView = {svc: rtmService, show: t.dataset.rtmOpen, feat: ""}; return renderRtm(); }
@@ -2637,15 +2654,134 @@ async function importRtm(file){
 }
 $("rtmImport").onchange = e => { if(e.target.files[0]) importRtm(e.target.files[0]); e.target.value = ""; };
 $("rtmFile").onchange = e => { if(e.target.files[0]) uploadPrd(e.target.files[0]); e.target.value = ""; };
-$("rtmAddReq").onclick = () => {
+function rtmAddRequirement(feature){
   if(!rtmDoc()) RTM[rtmService] = {file:"", uploaded_at:"", features:[], requirements:[], links:{}, rejected:{}};
   const doc = rtmDoc(), n = doc.requirements.length + 1;
   let id = "REQ-" + String(n).padStart(3, "0"); while(doc.requirements.some(r => r.id === id)) id += "a";
-  const feature = prompt("Feature / section for the new requirement:", doc.features[0] || "") ?? ""; const text = prompt("Requirement:"); if(!text) return;
-  doc.requirements.push({id, text, feature, priority:"", source:"manual"});
+  if(feature === undefined){ feature = prompt("PRD feature for the new requirement:", doc.features[0] || ""); if(feature === null) return; feature = feature.trim(); }
+  id = (prompt(`Requirement ID (in ${feature || "no feature"}):`, id) || "").trim(); if(!id) return;
+  if(doc.requirements.some(r => r.id === id)) return toast(`${id} already exists.`);
+  const title = (prompt(`${id} — short title (optional):`) || "").trim();
+  const text = (prompt(`${id} — requirement:`) || "").trim(); if(!text) return;
+  doc.requirements.push({id, title, text, feature, priority:"", kind:"FR", source:"manual"});
   if(feature && !doc.features.includes(feature)) doc.features.push(feature);
-  saveRtm(rtmService); renderRtm();
+  saveRtm(rtmService); renderRtm(); toast(`Added ${id}.`);
+}
+$("rtmAddReq").onclick = () => rtmAddRequirement();
+$("rtmAddFeat").onclick = () => {
+  const doc = rtmDoc(); if(!doc) return;
+  const name = (prompt("Name of the new PRD feature (e.g. Billing & Invoices):") || "").trim(); if(!name) return;
+  if(prdFeatures(doc).includes(name)) return toast(`“${name}” is already there.`);
+  doc.features.push(name); doc.extraFeatures = [...(doc.extraFeatures || []), name];
+  saveRtm(rtmService); renderRtm(); toast(`Added “${name}”. Now pick its Jira feature and add its requirements.`);
 };
+function rtmRemoveFeature(name){
+  const doc = rtmDoc(), reqs = doc.requirements.filter(r => featOf(r) === name);
+  if(!confirm(`Remove the PRD feature “${name}”` + (reqs.length ? ` and its ${reqs.length} requirement${reqs.length === 1 ? "" : "s"} (${reqs.slice(0, 6).map(r => r.id).join(", ")}${reqs.length > 6 ? "…" : ""})` : "") +
+    `?\n\nTheir story links and comments are removed too.`)) return;
+  const gone = new Set(reqs.map(r => r.id));
+  doc.requirements = doc.requirements.filter(r => !gone.has(r.id));
+  gone.forEach(id => { delete doc.links[id]; delete (doc.rejected || {})[id]; delete (doc.assess || {})[id]; });
+  doc.features = doc.features.filter(f => f !== name);
+  doc.extraFeatures = (doc.extraFeatures || []).filter(f => f !== name);
+  delete (doc.featureMap || {})[name];
+  if(rtmView.feat === name) rtmView.feat = "";
+  saveRtm(rtmService); renderRtm(); toast(`Removed “${name}”.`);
+}
+
+// ---- the full traceability report (Excel and PDF) ----
+const covKind = x => x.coverage === "Partially covered" ? "partial" : covGroup(x.coverage);
+function rtmReport(service){
+  const list = service ? [service] : rtmServices().filter(s => RTM[s]), C = roleCtx();
+  return {title: service ? `${service} — Requirement traceability` : "Requirement traceability — all services",
+    generated: new Date().toLocaleString(undefined, {dateStyle: "medium", timeStyle: "short"}),
+    services: list.map(s => { const e = rtmEvaluate(s);
+      const cnt = rows => { const i = inScope(rows), c = covered(i);
+        return {reqs: rows.length, covered: c, partial: i.filter(x => x.coverage === "Partially covered").length, not: i.length - c, excluded: rows.length - i.length}; };
+      const jl = keys => keys.map(k => `${k} ${(e.jira.features.find(f => f.key === k) || {}).summary || ""}`.trim());
+      return {service: s, prd: e.doc.file || "Requirements added by hand", source_url: e.doc.source_url || "", rtm_file: e.doc.rtm_file || "", totals: cnt(e.rows),
+        features: e.features.map(f => ({name: f.name, jira: jl(f.map.keys), stories: e.jira.stories.filter(x => f.map.keys.includes(x._feature)).length, ...cnt(f.rows)})),
+        rows: e.features.flatMap(f => f.rows.map(x => ({feature: f.name, jira: jl(f.map.keys).join("\n"), id: x.r.id, title: x.r.title || "", text: x.r.text,
+          priority: x.r.priority || "", status: x.assessment === "Drift" ? COV_LABEL.Drift : COV_LABEL[x.coverage] || x.coverage, group: covKind(x),
+          stories: x.linked.map(k => { const i = C.byKey.get(k); return {key: k, summary: i ? i.Summary : "", status: i ? i.Status : "", url: i ? i.URL : ""}; }),
+          comment: x.note || ""})))}; })};
+}
+const rtmFileName = ext => `${(rtmService || "all_services").replace(/[^\w-]+/g, "_")}_traceability_${new Date().toISOString().slice(0, 10)}.${ext}`;
+async function rtmExcel(){
+  const rep = rtmReport(rtmService); if(!rep.services.length) return toast("Add a PRD first.");
+  toast("Preparing the Excel file…");
+  const r = await fetch("/api/rtm/export.xlsx", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(rep)});
+  if(!r.ok) return toast("The Excel file couldn't be made. Restart the app and try again.");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = rtmFileName("xlsx"); a.click();
+}
+// A print-ready report in a new window; the browser's print dialog saves it as PDF.
+function rtmPdf(){
+  const rep = rtmReport(rtmService); if(!rep.services.length) return toast("Add a PRD first.");
+  const COL = {covered: "#12b76a", partial: "#f79009", not: "#f04438", excluded: "#98a2b3"};
+  const BG = {covered: "#d1fadf", partial: "#fef0c7", not: "#fee4e2", excluded: "#eaecf0"};
+  const pctOf = t => t.reqs - t.excluded ? Math.round(100 * t.covered / (t.reqs - t.excluded)) : 0;
+  const bar = t => { const full = t.covered - t.partial, all = full + t.partial + t.not || 1;
+    return `<div class="bar">${[["covered", full], ["partial", t.partial], ["not", t.not]].map(([k, n]) => n ? `<i style="width:${100 * n / all}%;background:${COL[k]}">${n}</i>` : "").join("")}</div>`; };
+  const pill = x => `<span class="pill" style="background:${BG[x.group]};color:${COL[x.group]}">${esc(x.status)}</span>`;
+  const stories = x => x.stories.length ? x.stories.map(st => `<div><b>${esc(st.key)}</b> ${esc(st.summary)}${st.status ? ` <span class="muted">(${esc(st.status)})</span>` : ""}</div>`).join("") : `<span class="muted">—</span>`;
+  const req = x => `${x.title ? `<b>${esc(x.title)}</b><br>` : ""}<span class="muted">${esc(x.text)}</span>`;
+  const svc = s => { const t = s.totals, not = s.rows.filter(x => x.group === "not");
+    return `<section>
+      <h2>${esc(s.service)}</h2>
+      <p class="muted">PRD: ${s.source_url ? `<a href="${esc(s.source_url)}">${esc(s.prd)}</a>` : esc(s.prd)}${s.rtm_file ? ` · story links from ${esc(s.rtm_file)}` : ""}</p>
+      <div class="kpis">
+        <div><b>${t.reqs}</b><span>PRD requirements</span></div>
+        <div style="border-color:${COL.covered}"><b style="color:${COL.covered}">${t.covered}</b><span>Covered${t.partial ? ` (${t.partial} partially)` : ""}</span></div>
+        <div style="border-color:${COL.not}"><b style="color:${COL.not}">${t.not}</b><span>Not covered</span></div>
+        <div><b>${pctOf(t)}%</b><span>covered${t.excluded ? ` · ${t.excluded} not counted` : ""}</span></div>
+      </div>
+      <h3>Coverage by PRD feature</h3>
+      <table><thead><tr><th>PRD feature</th><th>Jira feature</th><th class="n">User stories</th><th class="n">Requirements</th><th class="n">Covered</th><th class="n">Not covered</th><th style="width:28%"></th></tr></thead><tbody>
+      ${s.features.map(f => `<tr><td><b>${esc(f.name)}</b></td><td>${f.jira.length ? f.jira.map(esc).join("<br>") : `<span style="color:${COL.not}">Not mapped</span>`}</td>
+        <td class="n">${f.stories}</td><td class="n">${f.reqs}</td><td class="n">${f.covered}</td><td class="n"${f.not ? ` style="color:${COL.not};font-weight:700"` : ""}>${f.not}</td><td>${bar(f)}</td></tr>`).join("")}
+      <tr class="tot"><td>Total</td><td></td><td class="n">${s.features.reduce((a, f) => a + f.stories, 0)}</td><td class="n">${t.reqs}</td><td class="n">${t.covered}</td><td class="n">${t.not}</td><td>${bar(t)}</td></tr></tbody></table>
+      <h3 class="newpage" style="color:${COL.not}">Requirements not covered (${not.length})</h3>
+      ${not.length ? `<table><thead><tr><th style="width:9%">ID</th><th style="width:38%">Requirement</th><th style="width:17%">PRD feature</th><th>Comment</th></tr></thead><tbody>
+        ${not.map(x => `<tr><td><b>${esc(x.id)}</b></td><td>${req(x)}</td><td>${esc(x.feature)}</td><td>${esc(x.comment) || `<span class="muted">—</span>`}</td></tr>`).join("")}</tbody></table>`
+        : `<p>Every requirement is covered by a user story.</p>`}
+      <h3 class="newpage">Full traceability</h3>
+      <table><thead><tr><th style="width:9%">ID</th><th style="width:32%">Requirement</th><th style="width:27%">User stories</th><th style="width:10%">Status</th><th>Comment</th></tr></thead><tbody>
+      ${s.features.map(f => { const fr = s.rows.filter(x => x.feature === f.name); return fr.length ? `<tr class="feat"><td colspan="5">${esc(f.name)} <span class="muted">→ Jira: ${f.jira.length ? f.jira.map(esc).join(", ") : "not mapped"} · ${f.covered} of ${f.reqs - f.excluded} covered</span></td></tr>` +
+        fr.map(x => `<tr><td><b>${esc(x.id)}</b></td><td>${req(x)}</td><td>${stories(x)}</td><td>${pill(x)}</td><td>${esc(x.comment)}</td></tr>`).join("") : ""; }).join("")}
+      </tbody></table></section>`; };
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(rtmFileName("pdf").replace(/\.pdf$/, ""))}</title><style>
+    @page{size:A4 landscape;margin:12mm}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font:11px/1.4 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1d2330;margin:0;padding:16px}
+    header{border-bottom:3px solid #1f3a8a;padding-bottom:8px;margin-bottom:6px}
+    h3{break-after:avoid}
+    h1{font-size:20px;margin:0;color:#1f3a8a} h2{font-size:17px;margin:18px 0 2px;color:#1f3a8a} h3{font-size:13px;margin:16px 0 6px}
+    .muted{color:#667085} a{color:#1d4ed8}
+    section+section{break-before:page}
+    .newpage{break-before:page}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+    .kpis div{border:1px solid #d0d5dd;border-left-width:5px;border-radius:8px;padding:8px 12px}
+    .kpis b{display:block;font-size:24px} .kpis span{color:#475467}
+    table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    th{background:#1f3a8a;color:#fff;text-align:left;padding:6px;font-size:10px}
+    td{border-bottom:1px solid #e4e7ec;padding:5px 6px;vertical-align:top}
+    tr{break-inside:avoid} thead{display:table-header-group}
+    .n{text-align:right} tr.tot td{font-weight:700;background:#f2f4f7}
+    tr.feat td{background:#eef2ff;font-weight:700;color:#1f3a8a}
+    .bar{display:flex;height:14px;border-radius:3px;overflow:hidden;background:#eaecf0}
+    .bar i{display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-style:normal;font-weight:700}
+    .pill{display:inline-block;border-radius:10px;padding:1px 8px;font-weight:700;font-size:10px;white-space:nowrap}
+    .tip{background:#fffbeb;border:1px solid #fcd34d;padding:8px 12px;border-radius:6px;margin-bottom:12px}
+    @media print{.tip{display:none}}
+  </style></head><body>
+    <div class="tip">In the print window, choose <b>Save as PDF</b> as the destination. (Turn off “Headers and footers” for a cleaner page.)</div>
+    <header><h1>${esc(rep.title)}</h1><div class="muted">Generated ${esc(rep.generated)}</div></header>
+    ${rep.services.map(svc).join("")}
+    <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script></body></html>`;
+  const w = window.open("", "_blank");
+  if(!w) return toast("Your browser blocked the report window. Allow pop-ups for this page and try again.");
+  w.document.open(); w.document.write(html); w.document.close();
+}
 $("rtmRemove").onclick = async () => {
   if(!confirm(`Remove the PRD and all requirement links for ${rtmService}?`)) return;
   delete RTM[rtmService]; await api("/api/rtm/save", {service: rtmService, delete: true}); renderRtm();

@@ -229,8 +229,18 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    Explanation") are read row by row, with the title kept apart from the explanation. Functional, non-functional and
    acceptance-criteria tables are told apart, and only functional requirements are traced until you tick the others
    under **Trace**.
-6. **Export (CSV)** saves the list you are looking at (all, covered or not covered). Your links, statuses and
-   comments are saved in `output/rtm.json`.
+6. **Add or remove PRD features.** In the "How the PRD maps to Jira" table, **+ Add PRD feature** adds a new row
+   (then pick its Jira feature). Each row has **+ requirement** (asks for the ID, title and text) and **🗑 remove**
+   (removes the feature and its requirements, with their story links and comments, after asking you).
+7. **Download the whole traceability:**
+   - **⬇ Excel**: a formatted workbook with three sheets: *Summary* (headline numbers and coverage per PRD feature),
+     *Traceability* (every requirement with its Jira feature, user stories and their status, coverage status and
+     comment, coloured and filterable) and *Not covered*.
+   - **⬇ PDF**: opens a print-ready report (summary with coverage bars, the requirements not covered, then the full
+     traceability grouped by PRD feature). In the print window choose **Save as PDF**; turning off "Headers and
+     footers" gives a cleaner page. If nothing opens, allow pop-ups for the app.
+   - On the all-services page the same buttons download every service in one file. **CSV** saves the list you are
+     looking at. Your links, statuses and comments are saved in `output/rtm.json`.
 
 Sample PRDs to try with the demo data are in `samples/`.
 
@@ -279,6 +289,7 @@ app/server.py               local web server + `--refresh` CLI
 app/pipeline.py             Jira fetch, status → bucket mapping, people roll-up
 app/jira_client.py          Jira REST client (Cloud + Server/DC)
 app/excel_export.py         Power BI workbook writer
+app/rtm_export.py           traceability Excel report
 app/static/index.html       dashboard
 powerbi/                    DAX measures + optional direct Power Query
 output/                     jira_data.xlsx / jira_data.json (generated)
