@@ -207,33 +207,30 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    `/wiki/x/…` links work too), and your account needs permission to view it. Tables, bullets, task lists and info
    panels are all read, and Jira issues embedded in the page are linked straight to those tickets. After the PRD
    changes, click **⟳ Re-read page**; links you confirmed are kept for requirement ids that still exist.
-2. **How the mapping works.** It follows your Jira structure: *Epic (service) → Feature → User story*.
-   - Each **PRD feature** (a section of the PRD, e.g. "Invoices") is matched to a **Jira feature**: the issue your
-     user stories sit under. That's the story's parent (a Feature, or an Epic when stories hang straight off epics),
-     or a Feature issue the story is linked to. Check these in **Feature mapping**: ✓ to confirm, × to remove,
-     or pick the right one from the list.
-   - Each **requirement** is then matched against the **user stories under that Jira feature**. A story that
-     mentions the requirement id (e.g. `FR-7`), or a ticket the PRD names, is a sure match. Otherwise the wording
-     is compared, ignoring the feature's own name. Stories outside the feature need much closer wording.
-   - A requirement is **covered** when at least one user story is linked to it, and **missed** when none is.
-     Suggestions at 35% or more count until you confirm (✓) or reject (×) them. **Confirm strong suggestions**
-     accepts them all, feature matches included. You can also type a story key to link one by hand.
-3. **What you see:** coverage KPIs (PRD features in Jira, requirements covered vs missed, delivered); the
-   **Missed requirements** list with the closest stories; a requirement map and coverage per PRD feature; the
-   **matrix** (PRD feature → Jira feature → requirement → user stories, with delivery status, defects and tester);
-   and **Jira work not in the PRD**: Jira features no PRD feature maps to, and user stories no requirement asks for.
+2. **The four steps the page follows** (the "How the PRD maps to Jira" table):
+   ① each PRD requirement belongs to a **PRD feature** (a section of the PRD) → ② that PRD feature is mapped to a
+   **Jira feature** (the issue your user stories sit under: a Feature, or an Epic when stories hang straight off
+   epics). The app suggests one; × to remove it, or pick the right one from the list → ③ the **user stories** under
+   that Jira feature → ④ how many of the feature's requirements are **covered** and how many are **not covered**.
+3. **Covered or not covered.** The cards at the top show how many PRD requirements are covered by a user story and
+   how many are not. Click a card, or a number in the table, to see exactly those requirements. A requirement is
+   **covered** only when a user story is linked to it; the app never counts a guess as covered.
+   - **Add a story:** type the story key (or pick one from the list) under *User stories* and press Enter. For a
+     requirement that is not covered, the closest stories are shown as *Possible match*: ✓ links it, × hides it.
+   - **Status:** set *Partially covered*, *Not covered*, *External dependency* or *Out of scope* by hand when needed
+     (external and out of scope are not counted).
+   - **Comment:** click the comment box to say why (e.g. what is missing).
+   Jira work that no requirement mentions (search, filters, refresh, column settings and so on) is simply not shown.
 4. **Already have a traceability matrix in Excel?** Click **Import RTM (Excel/CSV)** after adding the PRD. The app
-   finds the sheet with a requirement-id column (e.g. "PRD Req ID") and a Jira-story column. Its story links become
-   confirmed links, and its coverage verdicts (Fully / Partially covered, Critical gap, Design drift, External
-   dependency) and gap notes become each requirement's **assessment**. Requirements in the PRD but missing from your
-   sheet are flagged. You can change an assessment or note per requirement in the matrix; your assessment overrides
-   the automatic coverage. The **Coverage summary** then shows, per PRD feature, what your RTM's summary sheet shows.
+   finds the sheet with a requirement-id column (e.g. "PRD Req ID") and a Jira-story column. Its story links, coverage
+   status (Fully / Partially covered, Critical gap, Design drift, External dependency) and gap notes are loaded as
+   each requirement's stories, status and comment. Requirements in the PRD but missing from your sheet are flagged.
 5. **PRDs with requirement tables in PDF** (an ID column like `CIS-ROM-01` or `NFR AVAIL 001` next to "Requirement +
    Explanation") are read row by row, with the title kept apart from the explanation. Functional, non-functional and
    acceptance-criteria tables are told apart, and only functional requirements are traced until you tick the others
    under **Trace**.
-6. **Export RTM (CSV)** and **Export missed (CSV)**, chart images, Copy Jira query and ✎ editing of requirement
-   text and priority all work here. Your links are saved in `output/rtm.json`.
+6. **Export (CSV)** saves the list you are looking at (all, covered or not covered). Your links, statuses and
+   comments are saved in `output/rtm.json`.
 
 Sample PRDs to try with the demo data are in `samples/`.
 
