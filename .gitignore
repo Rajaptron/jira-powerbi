@@ -2,3 +2,4 @@
 config.json
 output/
 __pycache__/
+.DS_Store
