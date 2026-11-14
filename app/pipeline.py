@@ -182,7 +182,7 @@ def fetch(cfg, progress=lambda msg: None):
 
     want = ["summary", "status", "assignee", "reporter", "issuetype", "priority", "components",
             "labels", "project", "created", "updated", "resolutiondate", "parent", "timespent",
-            "timeoriginalestimate", "timeestimate", "worklog", "issuelinks", "creator", "description"] + sp_ids
+            "timeoriginalestimate", "timeestimate", "worklog", "issuelinks", "creator", "description", "fixVersions"] + sp_ids
     if sprint_id:
         want.append(sprint_id)
     if custom_id:
@@ -267,6 +267,7 @@ def fetch(cfg, progress=lambda msg: None):
                              for l in f.get("issuelinks") or []} - {""}),
             "Labels": ", ".join(f.get("labels") or []),
             "Components": ", ".join(c["name"] for c in f.get("components") or []),
+            "FixVersions": ", ".join(v.get("name", "") for v in f.get("fixVersions") or []),
             "Fields": {n: v for n, v in ((n, next((x for x in (_first_value(f.get(i)) for i in ids) if x), ""))
                                           for n, ids in extra.items()) if v},
             "Created": created,

@@ -25,6 +25,10 @@ Filters (projects, services, ticket types, labels, assignees, sprint) apply to e
 multi-selects; hover an option and click **only** to pick just that one. Picking projects narrows every other list
 to what exists in those projects. **Show by** switches the overview charts between buckets and raw Jira statuses.
 
+**And filter by** adds a second filter next to Services: Labels, Parent / Epic, Fix version, Components, Priority,
+Reporter or one of your custom fields. Pick the field, then tick the values in the list that appears beside it —
+e.g. *Services: Billing* + *Fix version: Release 14*. (Fix versions arrive with the next refresh from Jira.)
+
 **Click any number** — a KPI tile, a bar segment, a matrix cell, a person's count, a timesheet total — and the
 matching tickets open in a panel at the bottom of the screen (searchable, sortable, exportable to CSV). Press Esc
 or ✕ to close it.
@@ -196,7 +200,8 @@ Completion rate = tickets completed in the period ÷ (open at the start + create
 
 The **Traceability** tab traces PRD requirements to Jira tickets, one view per service plus an all-services overview.
 
-1. Pick a service in the strip at the top of the tab and click **Upload PRD**. Word (.docx), PDF, Markdown and text
+1. Click **Open** next to a service (or pick just that one service in the **Services** filter at the top — the tab
+   follows it; tick several to compare only those, **← All services** goes back) and click **Upload PRD**. Word (.docx), PDF, Markdown and text
    all work. Requirements are read from requirement tables (ID / Requirement / Priority columns), ids such as
    `REQ-1`, `FR-2.1` and `US-04`, and bullet points under headings like "Requirements", "Features" or "User stories".
    Sections like Overview, Goals, Out of scope and Open questions are skipped, and each heading becomes a feature.
@@ -213,8 +218,12 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    epics). The app suggests one; × to remove it, or pick the right one from the list → ③ the **user stories** under
    that Jira feature → ④ how many of the feature's requirements are **covered** and how many are **not covered**.
 3. **Covered or not covered.** The cards at the top show how many PRD requirements are covered by a user story and
-   how many are not. Click a card, or a number in the table, to see exactly those requirements. A requirement is
-   **covered** only when a user story is linked to it; the app never counts a guess as covered.
+   how many are not. Click a card, or a number in the table, to see exactly those requirements. A requirement counts
+   as **covered** when a user story is linked to it (by you or from your RTM Excel), or when a user story under its
+   Jira feature matches it closely enough: that is shown as **Covered (auto-matched)** with the matching stories,
+   ✓ to confirm each one or × if it is wrong. **Automatic matching** next to *+ Add PRD feature* sets how close a
+   match must be (*Normal* by default; *Stricter* / *Strictest* count fewer stories), and **✓ Confirm all** turns every
+   auto-match into a confirmed link. Auto-matches compare wording only, so check them before sharing.
    - **Add a story:** type the story key (or pick one from the list) under *User stories* and press Enter. For a
      requirement that is not covered, the closest stories are shown as *Possible match*: ✓ links it, × hides it.
    - **Status:** set *Partially covered*, *Not covered*, *External dependency* or *Out of scope* by hand when needed

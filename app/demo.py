@@ -125,6 +125,7 @@ def generate(seed=7, cfg=None):
             "SprintState": ("active" if sprint_no == SPRINT_NOW else "closed") if in_sprint else "",
             "SprintStart": s_start, "SprintEnd": s_end, "Parent": "", "ParentKey": "", "Links": [],
             "Labels": ", ".join(sorted(rnd.sample(LABELS, rnd.choice([0, 1, 1, 2])))), "Components": service,
+            "FixVersions": "Release %d" % (1 + (sprint_no - 1) // 3) if in_sprint else "",
             "Fields": {k: v for k, v in (("Service", SERVICE_FIELD[service] if rnd.random() < 0.9 else ""),
                                          ("Team", "Squad %s" % "AB"[PEOPLE.index(assignee) % 2] if assignee in PEOPLE else "")) if v},
             "Created": created.isoformat(), "Updated": (resolved or today).isoformat(),

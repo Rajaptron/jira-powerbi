@@ -136,8 +136,6 @@ ul.summary{margin:0;padding-left:20px;line-height:1.8}
 tr.muted td{opacity:.45}
 input[type=color]{width:36px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 .kpi.good .v{color:var(--b-done)} .kpi.warn .v{color:var(--b-test)} .kpi.bad .v{color:var(--warn)}
-.rtm-strip{display:flex;flex-wrap:wrap;overflow:visible;border-radius:8px}
-.rtm-strip button{border-right:1px solid var(--line)}
 .rtm-maprow{display:grid;grid-template-columns:minmax(110px,180px) 1fr;gap:10px;align-items:center;margin:6px 0}
 .rtm-maprow .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rtm-cells{display:flex;flex-wrap:wrap;gap:4px}
@@ -207,6 +205,9 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <label class="f">Service field<span style="display:flex;gap:4px"><select id="fSvcField" title="Where the Services list comes from"></select><button type="button" id="svcDefaultBtn" class="hidden" title="Also use this in Settings, the Excel file and Power BI">Make default</button></span></label>
     <div class="dd"><label class="f"><span>Services <span class="sub" id="svcSource"></span></span><button id="svcBtn" type="button">All services ▾</button></label>
       <div id="svcMenu" class="dd-menu hidden"></div></div>
+    <label class="f">And filter by<select id="fExtraField" title="Add a second filter next to Services, e.g. a label, parent or fix version"></select></label>
+    <div class="dd hidden" id="extraDd"><label class="f"><span id="extraName">Values</span><button id="extraBtn" type="button">All ▾</button></label>
+      <div id="extraMenu" class="dd-menu hidden"></div></div>
     <label class="f">Sprint<select id="fSprint"></select></label>
     <div class="dd"><label class="f">Ticket type<button id="typeBtn" type="button">All ticket types ▾</button></label>
       <div id="typeMenu" class="dd-menu hidden"></div></div>
@@ -372,18 +373,18 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
   </section>
 
   <section id="tab-rtm" class="hidden">
-    <div class="seg rtm-strip" id="rtmStrip"></div>
     <div id="rtmOverview">
       <div class="kpis" id="rtmOvKpis"></div>
       <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Requirement traceability — all services</h2>
         <div class="cap" style="display:flex;gap:8px"><button type="button" data-rtm-xlsx>⬇ Excel (all services)</button><button type="button" data-rtm-pdf>⬇ PDF (all services)</button></div></div>
         <div class="tbl-wrap" id="rtmOvTable"></div></div>
-      <p class="hint">Pick a service above to upload its PRD and review the matrix. Tickets follow the <b>Service field</b> chosen in the filter bar.</p>
+      <p class="hint">Click <b>Open</b> (or pick just one service in the <b>Services</b> filter at the top) to upload its PRD and review its requirements. Ticking a few services at the top shows only those here. Tickets follow the <b>Service field</b> chosen in the filter bar.</p>
     </div>
     <div id="rtmService" class="hidden">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div><h2 style="margin:0" id="rtmSvcTitle"></h2><div class="sub" id="rtmSvcFile"></div></div>
+          <div><button type="button" data-rtm-svc="" style="margin-bottom:6px" title="Show every service again (also resets the Services filter at the top)">← All services</button>
+            <h2 style="margin:0" id="rtmSvcTitle"></h2><div class="sub" id="rtmSvcFile"></div></div>
           <div class="filters cap" style="margin:0">
             <label class="btn primary" style="cursor:pointer">⬆ Upload PRD<input type="file" id="rtmFile" accept=".docx,.pdf,.md,.markdown,.txt" hidden></label>
             <label class="btn rtm-needs-doc" style="cursor:pointer" title="Load the requirement → story links, coverage verdicts and gap notes from your own RTM spreadsheet">⬆ Import RTM (Excel/CSV)<input type="file" id="rtmImport" accept=".xlsx,.xlsm,.csv" hidden></label>
@@ -406,7 +407,8 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
       <div class="rtm-big rtm-needs-doc" id="rtmBig"></div>
       <div class="panel rtm-needs-doc"><h2>How the PRD maps to Jira</h2>
         <div class="tbl-wrap" id="rtmFlow"></div>
-        <div class="cap" style="margin-top:10px"><button type="button" id="rtmAddFeat">+ Add PRD feature</button></div>
+        <div class="cap" style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" id="rtmAddFeat">+ Add PRD feature</button>
+          <span style="flex:1"></span><span id="rtmAutoCtl"></span></div>
         <p class="hint">① each PRD requirement belongs to a PRD feature → ② that PRD feature is mapped to a Jira feature (× to remove, or pick the right one) → ③ the user stories under that Jira feature → ④ how many of the feature's requirements have a user story. Click a number to see those requirements.</p></div>
       <div class="panel rtm-needs-doc" id="rtmListPanel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -628,6 +630,7 @@ function hideTabs(){ ["overview","who","team","timesheet","report","plan","rtm",
 const MULTI = {
   Project: {btn:"projBtn", menu:"projMenu", plural:"projects"},
   Service: {btn:"svcBtn", menu:"svcMenu", plural:"services"},
+  Extra: {btn:"extraBtn", menu:"extraMenu", plural:"values"},
   IssueType: {btn:"typeBtn", menu:"typeMenu", plural:"ticket types"},
   Label: {btn:"labelBtn", menu:"labelMenu", plural:"labels"},
   Assignee: {btn:"assigneeBtn", menu:"assigneeMenu", plural:"people"},
@@ -640,8 +643,41 @@ function saveHidden(){ try { localStorage.setItem("ji.hidden", JSON.stringify(Ob
 const NO_LABEL = "(No label)";
 const labelsOf = i => i.Labels ? i.Labels.split(", ") : [NO_LABEL];
 // The value(s) a ticket has for a filter field (tickets can carry several labels).
-const valuesOf = (i, field) => field === "Label" ? labelsOf(i) : [i[field]];
+const valuesOf = (i, field) => field === "Label" ? labelsOf(i) : field === "Extra" ? extraValuesOf(i) : [i[field]];
 const labelOk = i => !hidden.Label.size || labelsOf(i).some(l => !hidden.Label.has(l));
+
+// "And filter by": a second filter next to Services — label, parent / epic, fix version, component or a custom field.
+function extraOptions(){
+  const opts = [["", "Nothing else"], ["Labels", "Labels", "labels"], ["Parent", "Parent / Epic", "parents"], ["FixVersions", "Fix version", "fix versions"],
+    ["Components", "Components", "components"], ["Priority", "Priority", "priorities"], ["Reporter", "Reporter", "reporters"]];
+  (DATA.meta.service_fields || []).slice().sort((a, b) => a.localeCompare(b)).forEach(f => opts.push(["field:" + f, `Field: ${f}`, "values"]));
+  return opts;
+}
+let extraField = ""; try { extraField = localStorage.getItem("ji.extraField") || ""; } catch(e) {}
+function extraValuesOf(i){
+  const f = extraField;
+  if(!f) return [];
+  if(["Labels", "Components", "FixVersions"].includes(f)) return i[f] ? i[f].split(", ") : [`(No ${f === "FixVersions" ? "fix version" : f.slice(0, -1).toLowerCase()})`];
+  if(f === "Parent") return [i.Parent || "(No parent)"];
+  if(f.startsWith("field:")) return [(i.Fields || {})[f.slice(6)] || "(Not set)"];
+  return [i[f] || "(None)"];
+}
+const extraOk = i => !extraField || !hidden.Extra.size || extraValuesOf(i).some(v => !hidden.Extra.has(v));
+function buildExtraPicker(){
+  const opts = extraOptions();
+  if(!opts.some(([k]) => k === extraField)) extraField = "";
+  $("fExtraField").innerHTML = opts.map(([k, label]) => `<option value="${esc(k)}">${esc(label)}</option>`).join("");
+  $("fExtraField").value = extraField;
+  const o = opts.find(([k]) => k === extraField);
+  MULTI.Extra.plural = o[2] || "values";
+  $("extraName").textContent = extraField ? o[1] : "Values";
+  $("extraDd").classList.toggle("hidden", !extraField);
+}
+$("fExtraField").onchange = () => {
+  extraField = $("fExtraField").value; hidden.Extra.clear(); saveHidden();
+  try { localStorage.setItem("ji.extraField", extraField); } catch(e) {}
+  buildExtraPicker(); buildFilters(); render();
+};
 const boardIssues = () => DATA.issues.filter(i => !i.Hidden);  // statuses hidden in Board setup never show
 
 function multiValues(field){
@@ -649,6 +685,7 @@ function multiValues(field){
   let pool = boardIssues();
   if(field !== "Project") pool = pool.filter(i => !hidden.Project.has(i.Project));
   if(field !== "Project" && field !== "Service") pool = pool.filter(i => !hidden.Service.has(i.Service));
+  if(!["Project", "Service", "Extra"].includes(field)) pool = pool.filter(extraOk);
   return uniq(pool.flatMap(i => valuesOf(i, field)));
 }
 function buildMulti(field){
@@ -669,7 +706,7 @@ function buildMulti(field){
   const changed = () => { saveHidden();
     // Picking projects (or services) narrows every other list to what's in them.
     const order = Object.keys(MULTI), after = order.slice(order.indexOf(field) + 1);
-    if(field === "Project" || field === "Service") { after.forEach(f => buildMulti(f)); buildSprintOptions(); }
+    if(["Project", "Service", "Extra"].includes(field)) { after.forEach(f => buildMulti(f)); buildSprintOptions(); }
     updateMultiLabel(field); render(); };
   menu.querySelectorAll("input[type=checkbox]").forEach(cb => cb.onchange = () => { cb.checked ? h.delete(cb.value) : h.add(cb.value); changed(); });
   menu.querySelectorAll("[data-only]").forEach(b => b.onclick = e => { e.preventDefault();
@@ -694,6 +731,7 @@ function buildSprintOptions(){
   fillSelect($("fSprint"), sprints, "All sprints", hasActive?`<option value="__active">Active sprint(s)</option>`:"");
 }
 function buildFilters(){
+  buildExtraPicker();
   Object.keys(MULTI).forEach(buildMulti);
   buildSprintOptions();
   fillSelect($("fBucket"), DATA.buckets, "All buckets");
@@ -703,7 +741,7 @@ function filtered(ignoreAssignee){
   const sp = $("fSprint").value;
   return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && !hidden.IssueType.has(i.IssueType)
     && (!sp || (sp==="__active" ? i.SprintState==="active" : i.Sprint===sp))
-    && (ignoreAssignee || !hidden.Assignee.has(i.Assignee)) && labelOk(i));
+    && (ignoreAssignee || !hidden.Assignee.has(i.Assignee)) && labelOk(i) && extraOk(i));
 }
 
 // ---------- rendering ----------
@@ -1090,7 +1128,7 @@ function roleCtx(){
 // (a QA's defects must count even when the screen is filtered to Stories).
 function rolePool(){
   const sp = $("fSprint").value;
-  return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && labelOk(i)
+  return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && labelOk(i) && extraOk(i)
     && (!sp || (sp === "__active" ? i.SprintState === "active" : i.Sprint === sp)));
 }
 const keysOf = list => list.map(i => i.Key || i);
@@ -2377,13 +2415,14 @@ function rtmEvaluate(service){
   // Only the requirement kinds you chose to trace (functional by default) count.
   const doc = {...saved, requirements: saved.requirements.filter(r => rtmKinds(saved).includes(r.kind || "FR"))};
   const jira = rtmJira(service, doc), fmap = rtmFeatureMap(doc, jira), m = rtmMatch(doc, jira, fmap);
+  const autoMin = RTM_STRICT[saved.strictness || "normal"].min;
   const assess = saved.assess || {};
   const rows = doc.requirements.map(r => {
     const sug = m[r.id].suggested, linked = m[r.id].linked, a = assess[r.id] || {};
-    // Strong suggestions only count while nobody has decided: confirmed links or an assessment take over.
-    const auto = [];
-    const roll = rtmRollup(linked);
-    const coverage = a.status ? (a.status === "Drift" ? "Gap" : a.status) : linked.length ? "Fully covered" : "Missed";
+    // Strong matches count as covered while nobody has decided: confirmed links or a status you set take over.
+    const auto = linked.length || a.status ? [] : sug.filter(s => s.score >= autoMin).map(s => s.key);
+    const roll = rtmRollup(linked.length ? linked : auto);
+    const coverage = a.status ? (a.status === "Drift" ? "Gap" : a.status) : linked.length ? "Fully covered" : auto.length ? "Auto-matched" : "Missed";
     return {r, jf: (fmap[featOf(r)] || {}).keys || [], linked, suggested: sug, auto, coverage, assessment: a.status || "", note: a.note || "", ...roll,
             status: GAPISH.has(coverage) ? "Missed" : roll.status === "Missed" ? "Planned" : roll.status}; });
   const traced = new Set(rows.flatMap(x => x.items.map(i => i.Key)));
@@ -2393,14 +2432,16 @@ function rtmEvaluate(service){
           untraced: jira.stories.filter(i => !traced.has(i.Key)), unmappedJira: jira.features.filter(f => !mappedJ.has(f.key))};
 }
 // How well each requirement is covered: your status (or one imported from your RTM), else covered when a story is linked.
-const COVERAGE = ["Fully covered", "Partially covered", "Gap", "Missed", "External dependency", "Out of scope"];
-const COVERAGE_COLOR = {"Fully covered":"var(--b-done)", "Partially covered":"#f5a524", "Gap":"#e5484d",
+// How strong a story match must be to count as covering a requirement before you confirm it.
+const RTM_STRICT = {normal: {min: 0.2, label: "Normal"}, medium: {min: 0.3, label: "Stricter"}, strict: {min: 0.45, label: "Strictest"}};
+const COVERAGE = ["Fully covered", "Auto-matched", "Partially covered", "Gap", "Missed", "External dependency", "Out of scope"];
+const COVERAGE_COLOR = {"Fully covered":"var(--b-done)", "Auto-matched":"#5cc8a0", "Partially covered":"#f5a524", "Gap":"#e5484d",
   "Missed":"#e5484d", "External dependency":"#9ca3af", "Out of scope":"#6b7280"};
-const COV_LABEL = {"Fully covered":"Covered", "Partially covered":"Partially covered", "Gap":"Not covered", "Missed":"Not covered",
+const COV_LABEL = {"Fully covered":"Covered", "Auto-matched":"Covered (auto-matched)", "Partially covered":"Partially covered", "Gap":"Not covered", "Missed":"Not covered",
   "Drift":"Not covered (drift)", "External dependency":"External dependency", "Out of scope":"Out of scope"};
 const ASSESS_OPTIONS = ["Fully covered", "Partially covered", "Gap", "Drift", "External dependency", "Out of scope"];
 const GAPISH = new Set(["Gap", "Missed"]);
-const covGroup = c => ["Fully covered", "Partially covered"].includes(c) ? "covered" : ["External dependency", "Out of scope"].includes(c) ? "excluded" : "not";
+const covGroup = c => ["Fully covered", "Auto-matched", "Partially covered"].includes(c) ? "covered" : ["External dependency", "Out of scope"].includes(c) ? "excluded" : "not";
 const inScope = rows => rows.filter(x => covGroup(x.coverage) !== "excluded");
 const covered = rows => rows.filter(x => covGroup(x.coverage) === "covered").length;
 const coveragePill = c => `<span class="pill" style="background:${COVERAGE_COLOR[c]}">${esc(COV_LABEL[c] || c)}</span>`;
@@ -2410,26 +2451,33 @@ function saveRtm(service){
   clearTimeout(rtmSaveTimer);
   rtmSaveTimer = setTimeout(() => api("/api/rtm/save", {service, doc: RTM[service]}), 400);
 }
-function rtmServices(){
+// The services in the selected projects (plus any with a PRD); rtmServices() keeps the ones ticked in the Services filter.
+function rtmAllServices(){
   const pool = boardIssues().filter(i => !hidden.Project.has(i.Project));
   return uniq([...pool.map(i => i.Service), ...Object.keys(RTM)]);
+}
+const rtmServices = () => rtmAllServices().filter(s => !hidden.Service.has(s));
+// Opening a service in Traceability = ticking only that service in the Services filter ("" = all services again).
+function rtmPickService(s){
+  hidden.Service.clear();
+  if(s) rtmAllServices().forEach(x => { if(x !== s) hidden.Service.add(x); });
+  saveHidden(); buildFilters();
 }
 // Covered / partially / not covered, as one bar.
 function covBar(rows){
   const parts = [["Covered", rows.filter(x => x.coverage === "Fully covered").length, COVERAGE_COLOR["Fully covered"]],
+    ["Covered (auto-matched)", rows.filter(x => x.coverage === "Auto-matched").length, COVERAGE_COLOR["Auto-matched"]],
     ["Partially covered", rows.filter(x => x.coverage === "Partially covered").length, COVERAGE_COLOR["Partially covered"]],
     ["Not covered", rows.filter(x => covGroup(x.coverage) === "not").length, RED]];
   const t = parts.reduce((a, p) => a + p[1], 0); if(!t) return "";
   return `<div class="bar" style="width:100%">${parts.map(([l, n, c]) => n ? `<span style="width:${100 * n / t}%;background:${c}" title="${l}: ${n}">${100 * n / t > 8 ? n : ""}</span>` : "").join("")}</div>`;
 }
-const covLegend = `<div class="legend" style="margin-top:8px"><span><i class="sw" style="background:${COVERAGE_COLOR["Fully covered"]}"></i>Covered</span><span><i class="sw" style="background:${COVERAGE_COLOR["Partially covered"]}"></i>Partially covered</span><span><i class="sw" style="background:${RED}"></i>Not covered</span></div>`;
+const covLegend = `<div class="legend" style="margin-top:8px"><span><i class="sw" style="background:${COVERAGE_COLOR["Fully covered"]}"></i>Covered</span><span><i class="sw" style="background:${COVERAGE_COLOR["Auto-matched"]}"></i>Covered (auto-matched, not yet confirmed)</span><span><i class="sw" style="background:${COVERAGE_COLOR["Partially covered"]}"></i>Partially covered</span><span><i class="sw" style="background:${RED}"></i>Not covered</span></div>`;
 
 function renderRtm(){
+  // Driven by the Services filter at the top: one service ticked → its PRD view, otherwise the summary of those ticked.
   const services = rtmServices();
-  if(rtmService && !services.includes(rtmService)) rtmService = "";
-  $("rtmStrip").innerHTML = `<button type="button" data-rtm-svc="" class="${rtmService ? "" : "active"}">All services</button>` +
-    services.map(s => { const e = RTM[s] ? rtmEvaluate(s) : null, p = e && inScope(e.rows).length ? share(covered(inScope(e.rows)), inScope(e.rows).length) : null;
-      return `<button type="button" data-rtm-svc="${esc(s)}" class="${s === rtmService ? "active" : ""}">${esc(s)}${p ? ` <span class="sub">${p}</span>` : ""}</button>`; }).join("");
+  rtmService = services.length === 1 ? services[0] : "";
   $("rtmOverview").classList.toggle("hidden", !!rtmService);
   $("rtmService").classList.toggle("hidden", !rtmService);
   return rtmService ? renderRtmService(rtmService) : renderRtmOverview(services);
@@ -2487,13 +2535,18 @@ function renderRtmService(service){
 
   // The headline: how many PRD requirements are covered by user stories, and how many are not. Click one to see them.
   const rows = e.rows, scoped = inScope(rows), cov = covered(scoped), not = scoped.length - cov, excl = rows.length - scoped.length;
-  const part = rows.filter(x => x.coverage === "Partially covered").length;
+  const part = rows.filter(x => x.coverage === "Partially covered").length, autoN = rows.filter(x => x.coverage === "Auto-matched").length;
   const card = (show, label, value, sub, color) => `<button type="button" class="rtm-card${rtmView.show === show ? " on" : ""}" data-rtm-show="${show}" style="--c:${color}">` +
     `<div class="v">${value}</div><div class="l">${label}</div><div class="sub">${sub}</div></button>`;
   $("rtmBig").innerHTML = card("all", "PRD requirements", rows.length, `in ${e.features.length} PRD feature${e.features.length === 1 ? "" : "s"}`, "var(--accent)") +
-    card("covered", "Covered", cov, `${share(cov, scoped.length)} have a user story${part ? ` · ${part} only partially` : ""}`, COVERAGE_COLOR["Fully covered"]) +
+    card("covered", "Covered", cov, `${share(cov, scoped.length)} have a user story${autoN ? ` · ${autoN} auto-matched (check them)` : ""}${part ? ` · ${part} only partially` : ""}`, COVERAGE_COLOR["Fully covered"]) +
     card("not", "Not covered", not, not ? "no user story yet — click to see them" : "every requirement has a user story", RED) +
     (excl ? card("excluded", "Not counted", excl, "external dependency or out of scope", "#9ca3af") : "");
+
+  // Automatic story matching: how strict, and confirming the matches in one go.
+  $("rtmAutoCtl").innerHTML = `<label class="sub" title="How closely a user story must match a requirement to count as covering it before you confirm it">Automatic matching ` +
+    `<select id="rtmStrict" style="font-size:12px;padding:2px 4px">${Object.entries(RTM_STRICT).map(([k, v]) => `<option value="${k}"${(saved.strictness || "normal") === k ? " selected" : ""}>${v.label}</option>`).join("")}</select></label>` +
+    (autoN ? ` <button type="button" id="rtmConfirmAuto" title="Turn every auto-match into a confirmed link">✓ Confirm all ${autoN} auto-matches</button>` : "");
 
   // PRD feature → Jira feature → user stories → coverage.
   const storiesOf = f => e.jira.stories.filter(s => f.map.keys.includes(s._feature));
@@ -2524,7 +2577,7 @@ function renderRtmService(service){
   const lists = e.features.map((f, n) => { const st = storiesOf(f).length ? storiesOf(f) : e.jira.stories;
     return `<datalist id="rtm-dl-${n}">${st.map(s => `<option value="${esc(s.Key)}">${esc(s.Summary)}</option>`).join("")}</datalist>`; }).join("");
   const statusSel = x => `<select data-rtm-assess class="rtm-assess" title="Change the status">` +
-    `<option value="">${x.linked.length ? "Auto: covered (story linked)" : "Auto: not covered (no story)"}</option>` +
+    `<option value="">${x.linked.length ? "Auto: covered (story linked)" : x.auto.length ? "Auto: covered (auto-matched)" : "Auto: not covered (no story)"}</option>` +
     ASSESS_OPTIONS.map(o => `<option value="${o}"${x.assessment === o ? " selected" : ""}>${COV_LABEL[o]}</option>`).join("") + `</select>`;
   $("rtmMatrix").innerHTML = lists + `<table class="rtm"><thead><tr><th>ID</th><th style="min-width:260px">Requirement</th><th style="min-width:220px">User stories</th><th>Status</th><th style="min-width:180px">Comment</th><th></th></tr></thead><tbody>` +
     e.features.map((f, n) => { const fr = shown.filter(x => featOf(x.r) === f.name); if(!fr.length) return "";
@@ -2532,6 +2585,7 @@ function renderRtmService(service){
         fr.map(x => { const open = covGroup(x.coverage) !== "covered";
           return `<tr data-req="${esc(x.r.id)}"><td><b>${esc(x.r.id)}</b></td><td class="wrap">${reqText(x)}</td>
           <td class="wrap">${x.linked.map(k => rtmChip(k, "linked")).join("")}` +
+            (x.auto.length ? `<div class="sub" style="margin-top:2px">Auto-matched — ✓ to confirm, × if wrong:</div>${x.suggested.filter(s => x.auto.includes(s.key)).map(s => rtmChip(s.key, "auto", s.score)).join("")}` : "") +
             (open && x.suggested.length ? `<div class="sub" style="margin-top:2px">Possible match — ✓ to link:</div>${x.suggested.map(s => rtmChip(s.key, "suggested", s.score)).join("")}` : "") +
             `<div><input class="rtm-add" data-rtm-add list="rtm-dl-${n}" placeholder="+ add story (key)" size="16"></div></td>
           <td>${coveragePill(x.coverage)}<br>${statusSel(x)}</td>
@@ -2552,8 +2606,8 @@ document.addEventListener("click", e => {
     return rtmRemoveFeature(name);
   }
   const t = e.target.closest("[data-rtm-svc],[data-rtm-show],[data-rtm-accept],[data-rtm-reject],[data-rtm-unlink],[data-rtm-del],[data-rtm-faccept],[data-rtm-fremove]"); if(!t) return;
-  if(t.dataset.rtmSvc !== undefined){ rtmService = t.dataset.rtmSvc;
-    if(t.dataset.rtmOpen) rtmView = {svc: rtmService, show: t.dataset.rtmOpen, feat: ""}; return renderRtm(); }
+  if(t.dataset.rtmSvc !== undefined){ rtmPickService(t.dataset.rtmSvc);
+    if(t.dataset.rtmOpen) rtmView = {svc: t.dataset.rtmSvc, show: t.dataset.rtmOpen, feat: ""}; return render(); }
   if(t.dataset.rtmShow !== undefined){ e.preventDefault(); rtmView.show = t.dataset.rtmShow; rtmView.feat = t.dataset.rtmFeat || "";
     renderRtm(); return $("rtmListPanel").scrollIntoView({behavior: "smooth", block: "start"}); }
   const feat = t.closest("tr")?.dataset.feat;
@@ -2668,6 +2722,16 @@ function rtmAddRequirement(feature){
   saveRtm(rtmService); renderRtm(); toast(`Added ${id}.`);
 }
 $("rtmAddReq").onclick = () => rtmAddRequirement();
+document.addEventListener("change", e => {
+  if(e.target.id !== "rtmStrict") return;
+  rtmDoc().strictness = e.target.value; saveRtm(rtmService); renderRtm();
+});
+document.addEventListener("click", e => {
+  if(e.target.id !== "rtmConfirmAuto") return;
+  const ev = rtmEvaluate(rtmService); let n = 0;
+  ev.rows.forEach(x => { if(x.auto.length){ ev.doc.links[x.r.id] = [...(ev.doc.links[x.r.id] || []), ...x.auto]; n += x.auto.length; } });
+  saveRtm(rtmService); renderRtm(); toast(`Confirmed ${n} auto-matched link${n === 1 ? "" : "s"}.`);
+});
 $("rtmAddFeat").onclick = () => {
   const doc = rtmDoc(); if(!doc) return;
   const name = (prompt("Name of the new PRD feature (e.g. Billing & Invoices):") || "").trim(); if(!name) return;
@@ -2703,7 +2767,7 @@ function rtmReport(service){
         features: e.features.map(f => ({name: f.name, jira: jl(f.map.keys), stories: e.jira.stories.filter(x => f.map.keys.includes(x._feature)).length, ...cnt(f.rows)})),
         rows: e.features.flatMap(f => f.rows.map(x => ({feature: f.name, jira: jl(f.map.keys).join("\n"), id: x.r.id, title: x.r.title || "", text: x.r.text,
           priority: x.r.priority || "", status: x.assessment === "Drift" ? COV_LABEL.Drift : COV_LABEL[x.coverage] || x.coverage, group: covKind(x),
-          stories: x.linked.map(k => { const i = C.byKey.get(k); return {key: k, summary: i ? i.Summary : "", status: i ? i.Status : "", url: i ? i.URL : ""}; }),
+          stories: (x.linked.length ? x.linked : x.auto).map(k => { const i = C.byKey.get(k); return {key: k, summary: i ? i.Summary : "", status: i ? i.Status : "", url: i ? i.URL : ""}; }),
           comment: x.note || ""})))}; })};
 }
 const rtmFileName = ext => `${(rtmService || "all_services").replace(/[^\w-]+/g, "_")}_traceability_${new Date().toISOString().slice(0, 10)}.${ext}`;

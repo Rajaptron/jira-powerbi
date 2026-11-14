@@ -48,7 +48,7 @@ def write_workbook(data, path):
     wb.remove(wb.active)
     issue_cols = ["Key", "Summary", "Project", "Service", "IssueType", "Status", "Bucket", "StatusCategory",
                   "Assignee", "Reporter", "Priority", "StoryPoints", "Sprint", "SprintState", "SprintEnd", "Parent",
-                  "Labels", "Components", "Created", "Updated", "Resolved", "AgeDays", "HoursLogged",
+                  "Labels", "Components", "FixVersions", "Created", "Updated", "Resolved", "AgeDays", "HoursLogged",
                   "OriginalEstimateHours", "RemainingHours", "DoneDate", "ClosedBy", "DevStarted", "CycleDays",
                   "LeadDays", "TimesReopened", "Creator", "ParentKey", "Links", "URL"]
 
