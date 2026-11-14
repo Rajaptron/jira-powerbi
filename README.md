@@ -21,11 +21,12 @@ and worklogs, and gives you:
 | Monthly progress report for stakeholders: summary, burndown, created-vs-completed trend, points delivered, progress per service, biggest deliveries, items needing attention | *Stakeholder report* (pick a period; print / save as PDF or export images) |
 | Any ticket list, searchable, exportable | *All tickets* |
 
-Filters (projects, services, ticket types, labels, assignees, sprint) apply to every tab. They're searchable
+The pages are in the **side menu** on the left (**« Collapse menu** shrinks it to icons). Filters (projects, services,
+ticket types, assignees, sprint, plus the **And filter by** field) apply to every tab. They're searchable
 multi-selects; hover an option and click **only** to pick just that one. Picking projects narrows every other list
 to what exists in those projects. **Show by** switches the overview charts between buckets and raw Jira statuses.
 
-**And filter by** adds a second filter next to Services: Labels, Parent / Epic, Fix version, Components, Priority,
+**And filter by** adds a second filter next to Services (this is also where the Labels filter lives): Labels, Parent / Epic, Fix version, Components, Priority,
 Reporter or one of your custom fields. Pick the field, then tick the values in the list that appears beside it —
 e.g. *Services: Billing* + *Fix version: Release 14*. (Fix versions arrive with the next refresh from Jira.)
 

@@ -14,28 +14,65 @@
   --b-ref:#b9a2ff;--b-todo:#7d8aa0;--b-dev:#5b9bff;--b-test:#f5b544;--b-done:#3cc488;--warn:#ff8a7a;--chip:#232a3b;}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+body{display:flex;min-height:100vh}
+.app{flex:1;min-width:0;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header .page-title{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+/* Side menu */
+#side{position:sticky;top:0;height:100vh;width:236px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 12px;overflow-y:auto;z-index:6;transition:width .18s}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 6px 18px}
+.brand .logo{width:34px;height:34px;flex:none;border-radius:10px;background:linear-gradient(135deg,var(--accent),#a06cff);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+.brand h1{font-size:16px;line-height:1.2;white-space:nowrap}
+.brand .badge{margin:3px 0 0}
+.side-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 10px 6px;white-space:nowrap}
+#tabs{display:flex;flex-direction:column;gap:2px}
+#tabs button{display:flex;align-items:center;gap:11px;border:0;border-radius:9px;padding:9px 10px;text-align:left;color:var(--muted);font-weight:500;background:none;white-space:nowrap;overflow:hidden}
+#tabs button::before{flex:none;width:22px;text-align:center;font-size:16px}
+#tabs button:hover{background:var(--chip);color:var(--ink)}
+#tabs button.active{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:650;box-shadow:inset 3px 0 0 var(--accent)}
+#tabs [data-tab=overview]::before{content:"📊"} #tabs [data-tab=who]::before{content:"🧑‍💻"} #tabs [data-tab=team]::before{content:"👥"}
+#tabs [data-tab=timesheet]::before{content:"⏱️"} #tabs [data-tab=report]::before{content:"📈"} #tabs [data-tab=plan]::before{content:"🗓️"}
+#tabs [data-tab=rtm]::before{content:"🔗"} #tabs [data-tab=tickets]::before{content:"🎫"} #tabs [data-tab=settings]::before{content:"⚙️"}
+.side-foot{margin-top:auto;padding-top:12px}
+#sideToggle{width:100%;border:0;background:none;color:var(--muted);text-align:left;padding:8px 10px;font-size:12px;white-space:nowrap}
+#sideToggle:hover{color:var(--ink);background:var(--chip)}
+body.side-mini #side{width:68px}
+body.side-mini .brand h1,body.side-mini .side-label{display:none}
+body.side-mini #tabs button{font-size:0;justify-content:center;padding:10px 0}
+body.side-mini #tabs button::before{font-size:18px}
+body.side-mini #sideToggle{text-align:center}
 h1{font-size:18px;margin:0}
 h2{font-size:15px;margin:0 0 12px}
 .sub{color:var(--muted);font-size:12px}
 .badge{display:inline-block;background:var(--b-test);color:#000;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-left:6px}
-button,.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:6px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer;text-decoration:none;display:inline-block;transition:background .12s,border-color .12s,box-shadow .12s}
+button:hover:not(:disabled),.btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+button.primary:hover:not(:disabled),.btn.primary:hover{filter:brightness(1.08)}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 button:disabled{opacity:.55;cursor:default}
-nav{display:flex;gap:4px;padding:0 24px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
-nav button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:10px 12px;white-space:nowrap}
-nav button.active{border-bottom-color:var(--accent);color:var(--accent);font-weight:600}
-main{padding:20px 24px;max-width:1500px;margin:0 auto}
+main{padding:22px 28px;max-width:1500px;width:100%;margin:0 auto}
+#filters{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px;gap:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+#filters select,#filters .dd button{min-width:130px;text-align:left}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
-select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
-label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+select:focus,input:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:0;border-color:var(--accent)}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.kpi .v{font-size:24px;font-weight:650}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04);transition:transform .12s,border-color .12s}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);opacity:.7}
+.kpi:nth-child(5n+2)::before{background:var(--b-dev)} .kpi:nth-child(5n+3)::before{background:var(--b-ref)} .kpi:nth-child(5n+4)::before{background:var(--b-test)} .kpi:nth-child(5n)::before{background:var(--b-done)}
+.kpi[data-drill]:hover{transform:translateY(-1px)}
+.kpi .v{font-size:26px;font-weight:700;letter-spacing:-.02em}
 .kpi .l{font-size:12px;color:var(--muted)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media (max-width:900px){.grid2{grid-template-columns:1fr}header,nav,main{padding-left:16px;padding-right:16px}}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}header,main{padding-left:16px;padding-right:16px}
+  body{flex-direction:column}
+  #side,body.side-mini #side{position:sticky;top:0;width:auto;height:auto;flex-direction:row;align-items:center;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;z-index:7}
+  .brand{padding:0 8px 0 0}.brand h1,.side-label,.side-foot{display:none}
+  #tabs{flex-direction:row}
+  #tabs button,body.side-mini #tabs button{font-size:13px;padding:8px 10px}
+  header{position:static}.drawer{left:0}}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-bottom:10px}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .barrow{display:grid;grid-template-columns:minmax(110px,190px) 1fr 70px;gap:10px;align-items:center;margin:6px 0}
@@ -85,7 +122,7 @@ h2.with-cap{display:flex;justify-content:space-between;align-items:center;gap:8p
 .capturing{padding:20px !important;background:#fff !important;border-radius:0 !important}
 .capture-caption{font-size:13px;color:#475467;margin-bottom:14px;line-height:1.5}
 .capture-caption b{font-size:17px;color:#1d2330}
-.drawer{position:fixed;left:0;right:0;bottom:0;height:46vh;background:var(--panel);border-top:3px solid var(--accent);box-shadow:0 -10px 30px rgba(0,0,0,.25);z-index:20;display:flex;flex-direction:column}
+.drawer{position:fixed;left:var(--side-w,236px);right:0;bottom:0;height:46vh;background:var(--panel);border-top:3px solid var(--accent);box-shadow:0 -10px 30px rgba(0,0,0,.25);z-index:20;display:flex;flex-direction:column}
 .drawer-head{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:10px 24px;border-bottom:1px solid var(--line)}
 .drawer-head b{font-size:15px}
 .drawer-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -124,7 +161,7 @@ ul.summary{margin:0;padding-left:20px;line-height:1.8}
 .svc-nums b{font-size:20px}
 .svc-nums div > span:last-child{font-size:11px;color:var(--muted)}
 @media print{
-  header,nav,#filters,#drillHint,#rControls,.cap,.drawer,.toast,#status{display:none !important}
+  header,#side,#filters,#drillHint,#rControls,.cap,.drawer,.toast,#status{display:none !important}
   body{background:#fff}
   main{padding:0;max-width:none}
   .panel,.kpi{break-inside:avoid}
@@ -172,9 +209,26 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js" defer></script>
 </head>
 <body>
+<aside id="side">
+  <div class="brand"><div class="logo">JI</div><div><h1>Jira Insights</h1><span id="demoBadge" class="badge hidden">DEMO DATA</span></div></div>
+  <div class="side-label">Menu</div>
+<nav id="tabs">
+  <button data-tab="overview" class="active" title="Overview">Overview</button>
+  <button data-tab="who" title="Who's working on what">Who's working on what</button>
+  <button data-tab="team" title="Team &amp; resources">Team &amp; resources</button>
+  <button data-tab="timesheet" title="Timesheet">Timesheet</button>
+  <button data-tab="report" title="Stakeholder report">Stakeholder report</button>
+  <button data-tab="plan" title="Planning">Planning</button>
+  <button data-tab="rtm" title="Traceability">Traceability</button>
+  <button data-tab="tickets" title="All tickets">All tickets</button>
+  <button data-tab="settings" title="Settings">Settings</button>
+</nav>
+  <div class="side-foot"><button type="button" id="sideToggle" title="Collapse or expand the menu">« Collapse menu</button></div>
+</aside>
+<div class="app">
 <header>
   <div>
-    <h1>Jira Insights <span id="demoBadge" class="badge hidden">DEMO DATA</span></h1>
+    <div class="page-title" id="pageTitle">Overview</div>
     <div class="sub" id="metaLine">Not connected yet</div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -182,20 +236,8 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <button id="fullBtn" title="Reload every ticket from Jira (use after changing what to pull, or once a week)">Full reload</button>
     <a class="btn" id="xlsxBtn" href="/download/jira_data.xlsx">Download Excel (Power BI)</a>
     <button type="button" data-cap="png" data-target="@tab" title="Download the whole current tab as a PNG">📷 Capture view</button>
-    <button id="settingsBtn">Settings</button>
   </div>
 </header>
-<nav id="tabs">
-  <button data-tab="overview" class="active">Overview</button>
-  <button data-tab="who">Who's working on what</button>
-  <button data-tab="team">Team &amp; resources</button>
-  <button data-tab="timesheet">Timesheet</button>
-  <button data-tab="report">Stakeholder report</button>
-  <button data-tab="plan">Planning</button>
-  <button data-tab="rtm">Traceability</button>
-  <button data-tab="tickets">All tickets</button>
-  <button data-tab="settings">Settings</button>
-</nav>
 <main>
   <div id="status" class="msg hidden"></div>
 
@@ -211,8 +253,6 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <label class="f">Sprint<select id="fSprint"></select></label>
     <div class="dd"><label class="f">Ticket type<button id="typeBtn" type="button">All ticket types ▾</button></label>
       <div id="typeMenu" class="dd-menu hidden"></div></div>
-    <div class="dd"><label class="f">Labels<button id="labelBtn" type="button">All labels ▾</button></label>
-      <div id="labelMenu" class="dd-menu hidden"></div></div>
     <div class="dd"><label class="f">Assignee<button id="assigneeBtn" type="button">All people ▾</button></label>
       <div id="assigneeMenu" class="dd-menu hidden"></div></div>
     <label class="f">Measure<select id="fMetric"><option value="count">Ticket count</option><option value="sp">Story points</option></select></label>
@@ -511,6 +551,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <button class="primary" onclick="showTab('settings')">Open settings</button> <button onclick="refresh(true)">Load demo data</button>
   </div>
 </main>
+</div>
 
 <div id="drawer" class="drawer hidden">
   <div class="drawer-head">
@@ -632,7 +673,6 @@ const MULTI = {
   Service: {btn:"svcBtn", menu:"svcMenu", plural:"services"},
   Extra: {btn:"extraBtn", menu:"extraMenu", plural:"values"},
   IssueType: {btn:"typeBtn", menu:"typeMenu", plural:"ticket types"},
-  Label: {btn:"labelBtn", menu:"labelMenu", plural:"labels"},
   Assignee: {btn:"assigneeBtn", menu:"assigneeMenu", plural:"people"},
 };
 const hidden = Object.fromEntries(Object.keys(MULTI).map(k => [k, new Set()]));
@@ -640,11 +680,8 @@ try { const saved = JSON.parse(localStorage.getItem("ji.hidden") || "{}");
   Object.keys(hidden).forEach(k => (saved[k]||[]).forEach(v => hidden[k].add(v))); } catch(e) {}
 function saveHidden(){ try { localStorage.setItem("ji.hidden", JSON.stringify(Object.fromEntries(Object.entries(hidden).map(([k, v]) => [k, [...v]])))); } catch(e) {} }
 
-const NO_LABEL = "(No label)";
-const labelsOf = i => i.Labels ? i.Labels.split(", ") : [NO_LABEL];
-// The value(s) a ticket has for a filter field (tickets can carry several labels).
-const valuesOf = (i, field) => field === "Label" ? labelsOf(i) : field === "Extra" ? extraValuesOf(i) : [i[field]];
-const labelOk = i => !hidden.Label.size || labelsOf(i).some(l => !hidden.Label.has(l));
+// The value(s) a ticket has for a filter field (tickets can carry several labels, components or fix versions).
+const valuesOf = (i, field) => field === "Extra" ? extraValuesOf(i) : [i[field]];
 
 // "And filter by": a second filter next to Services — label, parent / epic, fix version, component or a custom field.
 function extraOptions(){
@@ -741,7 +778,7 @@ function filtered(ignoreAssignee){
   const sp = $("fSprint").value;
   return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && !hidden.IssueType.has(i.IssueType)
     && (!sp || (sp==="__active" ? i.SprintState==="active" : i.Sprint===sp))
-    && (ignoreAssignee || !hidden.Assignee.has(i.Assignee)) && labelOk(i) && extraOk(i));
+    && (ignoreAssignee || !hidden.Assignee.has(i.Assignee)) && extraOk(i));
 }
 
 // ---------- rendering ----------
@@ -1128,7 +1165,7 @@ function roleCtx(){
 // (a QA's defects must count even when the screen is filtered to Stories).
 function rolePool(){
   const sp = $("fSprint").value;
-  return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && labelOk(i) && extraOk(i)
+  return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && extraOk(i)
     && (!sp || (sp === "__active" ? i.SprintState === "active" : i.Sprint === sp)));
 }
 const keysOf = list => list.map(i => i.Key || i);
@@ -1943,7 +1980,7 @@ function filterSummary(){
   const part = (field) => { const all = multiValues(field), shown = all.filter(v => !hidden[field].has(v));
     return shown.length === all.length ? `All ${MULTI[field].plural}` : shown.join(", ") || `No ${MULTI[field].plural}`; };
   const sel = id => $(id).value ? $(id).selectedOptions[0].textContent : "";
-  return [part("Project"), part("Service"), part("IssueType"), part("Label"), part("Assignee"), sel("fSprint")].filter(Boolean).join(" · ");
+  return [part("Project"), part("Service"), part("IssueType"), extraField ? `${$("extraName").textContent}: ${part("Extra")}` : "", part("Assignee"), sel("fSprint")].filter(Boolean).join(" · ");
 }
 function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toast.timer); toast.timer = setTimeout(()=>t.classList.add("hidden"), 3500); }
 
@@ -2865,7 +2902,7 @@ function widgetScope(){
   const pick = field => { const all = multiValues(field), shown = all.filter(v => !hidden[field].has(v)); return shown.length === all.length ? [] : shown; };
   // Service names only narrow the Jira query when they come from the field the data was pulled with.
   const sameSource = $("fSvcField").value === (DATA.meta.service_source || "component");
-  return {projects: pick("Project"), services: sameSource ? pick("Service") : [], types: pick("IssueType"), labels: pick("Label")};
+  return {projects: pick("Project"), services: sameSource ? pick("Service") : [], types: pick("IssueType"), labels: extraField === "Labels" ? pick("Extra") : []};
 }
 async function refreshWidget(btn){
   const panel = btn.closest(".panel"), label = btn.textContent;
@@ -2914,6 +2951,7 @@ $("fullBtn").onclick = () => CONFIG.jira_url && CONFIG.has_token ? refresh(false
 function showTab(t){
   currentTab = t;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
+  $("pageTitle").textContent = document.querySelector(`#tabs button[data-tab=${t}]`).textContent;
   ["overview","who","team","timesheet","report","plan","rtm","tickets","settings"].forEach(x=>$("tab-"+x).classList.toggle("hidden", x!==t || (!DATA && x!=="settings")));
   $("filters").classList.toggle("hidden", t==="settings" || !DATA);
   $("drillHint").classList.toggle("hidden", t==="settings" || !DATA);
@@ -2922,7 +2960,12 @@ function showTab(t){
   if(t==="settings") fillSettings(); else render();
 }
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-$("settingsBtn").onclick = () => showTab("settings");
+// Side menu: collapse to icons only (remembered on this computer).
+function setSideMini(on){ document.body.classList.toggle("side-mini", on);
+  document.documentElement.style.setProperty("--side-w", on ? "68px" : "236px");
+  $("sideToggle").textContent = on ? "»" : "« Collapse menu"; try { localStorage.setItem("ji.sideMini", on ? "1" : ""); } catch(e) {} }
+$("sideToggle").onclick = () => setSideMini(!document.body.classList.contains("side-mini"));
+try { if(localStorage.getItem("ji.sideMini")) setSideMini(true); } catch(e) {}
 Object.values(MULTI).forEach(m => $(m.btn).onclick = e => { e.stopPropagation();
   const open = $(m.menu).classList.contains("hidden");
   Object.values(MULTI).forEach(o => $(o.menu).classList.add("hidden"));
