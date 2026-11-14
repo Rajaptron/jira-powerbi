@@ -24,7 +24,11 @@ and worklogs, and gives you:
 The pages are in the **side menu** on the left (**« Collapse menu** shrinks it to icons). Filters (projects, services,
 ticket types, assignees, sprint, plus any **Filter 1, 2, …** you add) apply to every tab. They're searchable
 multi-selects; hover an option and click **only** to pick just that one. Picking projects narrows every other list
-to what exists in those projects. **Show by** switches the overview charts between buckets and raw Jira statuses.
+to what exists in those projects. **Show by** switches the overview charts between buckets and raw Jira statuses. Every page follows every filter. A few pages
+use them in their own way: **Productivity** and the role reports — the Assignee filter narrows the people listed;
+**Defect analysis** — Ticket type applies to defects and stories separately; **Traceability** — Sprint, Ticket type,
+Assignee and Filter 1, 2, … narrow the stories used for automatic matching (stories you linked and statuses you set
+always count); **Planning** velocity uses each person's own finished sprints.
 
 **Filter 1, Filter 2, …** — click **+ Add filter** under the standard filters to add as many as you need: pick the
 field (Labels, Parent / Epic, Fix version, Components, Priority, Reporter or a custom field), then tick its values —
@@ -274,8 +278,8 @@ Sample PRDs to try with the demo data are in `samples/`.
 ## Defect analysis
 
 The **Defect analysis** page (side menu) looks at defects — the ticket types listed in Settings → Roles (*Bug* by
-default) — for the filters at the top (ticket type and assignee filters don't apply) and a **Defects created in**
-period:
+default) — for every filter at the top and a **Defects created in** period. The Ticket type filter applies to defects and
+stories separately, so ticking only *Story* still keeps the defects of those stories:
 
 - **Numbers:** defects, still open, reopened, defects per story point, stories with defects, stories sent back to
   development, and defects not linked to any story.

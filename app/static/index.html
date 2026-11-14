@@ -542,7 +542,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
       <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Requirement traceability — all services</h2>
         <div class="cap" style="display:flex;gap:8px"><button type="button" data-rtm-xlsx>⬇ Excel (all services)</button><button type="button" data-rtm-pdf>⬇ PDF (all services)</button></div></div>
         <div class="tbl-wrap" id="rtmOvTable"></div></div>
-      <p class="hint">Click <b>Open</b> (or pick just one service in the <b>Services</b> filter at the top) to upload its PRD and review its requirements. Ticking a few services at the top shows only those here. Tickets follow the <b>Service field</b> chosen in the filter bar.</p>
+      <p class="hint">Click <b>Open</b> (or pick just one service in the <b>Services</b> filter at the top) to upload its PRD and review its requirements. Ticking a few services at the top shows only those here. Tickets follow the <b>Service field</b> chosen in the filter bar; Sprint, Ticket type, Assignee and Filter 1, 2, … narrow the user stories used for automatic matching (stories you linked yourself and statuses you set always count).</p>
     </div>
     <div id="rtmService" class="hidden">
       <div class="panel">
@@ -1096,6 +1096,26 @@ function buildFilters(){
   fillSelect($("fBucket"), DATA.buckets, "All buckets");
 }
 
+// Does a ticket pass the filters at the top? Options turn parts off for pages that need it:
+// {service:false} (Traceability maps stories from other services too), {assignee:false} (per-person reports pick the
+// person themselves), {type:"split"} (pages that pair defects with stories: the Ticket type filter applies to each side
+// on its own, so ticking only "Story" still keeps the defects; a side with nothing ticked isn't filtered).
+let SPLIT = null;  // cached per render
+function splitTypeOk(i){
+  if(!SPLIT){ const C = roleCtx(), types = uniq(boardIssues().map(t => t.IssueType)), on = t => !hidden.IssueType.has(t);
+    SPLIT = {def: types.some(t => C.isDefect({IssueType: t}) && on(t)), work: types.some(t => !C.isDefect({IssueType: t}) && on(t))}; }
+  if(!hidden.IssueType.has(i.IssueType)) return true;
+  return !(roleCtx().isDefect(i) ? SPLIT.def : SPLIT.work);
+}
+function passes(i, o = {}){
+  const sp = $("fSprint").value;
+  return !hidden.Project.has(i.Project) && (o.service === false || !hidden.Service.has(i.Service)) && extraOk(i)
+    && (!sp || (sp === "__active" ? i.SprintState === "active" : i.Sprint === sp))
+    && (o.type === false || (o.type === "split" ? splitTypeOk(i) : !hidden.IssueType.has(i.IssueType)))
+    && (o.assignee === false || !hidden.Assignee.has(i.Assignee));
+}
+// The people ticked in the Assignee filter, or null when it isn't narrowing anything.
+const assigneeScope = () => hidden.Assignee.size ? new Set(multiValues("Assignee").filter(v => !hidden.Assignee.has(v))) : null;
 function filtered(ignoreAssignee){
   const sp = $("fSprint").value;
   return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && !hidden.IssueType.has(i.IssueType)
@@ -1106,6 +1126,7 @@ function filtered(ignoreAssignee){
 // ---------- rendering ----------
 function render(){
   if(!DATA) return;
+  SPLIT = null;
   updateFiltersSum();
   const issues = filtered();
   ({overview:renderOverview, who:renderWho, team:renderTeam, timesheet:renderTimesheet, report:renderReport, plan:renderPlan, rtm:renderRtm, defects:renderDefects, tickets:renderTickets}[currentTab]||(()=>{}))(issues);
@@ -1299,12 +1320,14 @@ let roleMode = "all";
 function renderProductivity(){
   $("pGeneric").classList.toggle("hidden", roleMode !== "all");
   $("pRoleView").classList.toggle("hidden", roleMode === "all");
-  const issues = filtered(true), range = prodRange(), person = $("pPerson").value || "*";
-  const label = person === "*" ? "Team" : person, rangeTxt = `${range[0]} → ${range[1]}`;
+  // The Assignee filter narrows who's listed (and "whole team" becomes those people's tickets).
+  const scope = assigneeScope(), issues = filtered(!scope), range = prodRange();
   const people = uniq([...issues.map(closerOf), ...issues.map(i=>i.Assignee), ...(DATA.transitions||[]).map(t=>t.MovedBy),
-    ...DATA.worklogs.map(w=>w.Author)].filter(n => n && n !== "Unassigned"));
+    ...DATA.worklogs.map(w=>w.Author)].filter(n => n && n !== "Unassigned" && (!scope || scope.has(n))));
   const cur = $("pPerson").value;
-  $("pPerson").innerHTML = `<option value="">Whole team</option>` + people.map(p=>`<option ${p===cur?"selected":""}>${esc(p)}</option>`).join("");
+  $("pPerson").innerHTML = `<option value="">${scope ? "Selected people" : "Whole team"}</option>` + people.map(p=>`<option ${p===cur?"selected":""}>${esc(p)}</option>`).join("");
+  const person = $("pPerson").value || "*";
+  const label = person === "*" ? (scope ? "Selected people" : "Team") : person, rangeTxt = `${range[0]} → ${range[1]}`;
   if(roleMode !== "all") return renderRoleView(roleMode);
   const hasHistory = !!DATA.meta.has_history;
   $("pNoHistory").classList.toggle("hidden", hasHistory);
@@ -1497,7 +1520,7 @@ const severityOf = i => { const f = i.Fields || {}, k = Object.keys(f).find(n =>
 const priorityOf = i => i.Priority || "(None)";
 const keyLink = i => `<a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(i.Key)}</a>`;
 function renderDefects(){
-  const C = roleCtx(), pool = rolePool(), days = +$("dPeriod").value;
+  const C = roleCtx(), pool = boardIssues().filter(i => passes(i, {type: "split"})), days = +$("dPeriod").value;
   const from = days ? new Date(Date.now() - days * 864e5).toISOString().slice(0, 10) : "", range = [from, ""];
   const defects = pool.filter(i => C.isDefect(i) && inRange(i.Created, range)), dset = new Set(defects.map(d => d.Key));
   const keysOf = list => list.map(i => i.Key || i);
@@ -1516,7 +1539,7 @@ function renderDefects(){
   const backBy = new Map(); back.forEach(t => { if(!backBy.has(t.Key)) backBy.set(t.Key, []); backBy.get(t.Key).push(t); });
   const sevSet = defects.some(d => severityOf(d) !== "(Not set)");
   const period = $("dPeriod").selectedOptions[0].textContent.toLowerCase();
-  $("dNote").innerHTML = `${defects.length} ${esc((CONFIG.defect_types || ["Bug"]).join(" / "))} tickets created ${period}, for the filters at the top (ticket type and assignee filters don't apply here).` +
+  $("dNote").innerHTML = `${defects.length} ${esc((CONFIG.defect_types || ["Bug"]).join(" / "))} tickets created ${period}, for the filters at the top. Ticket type applies to defects and stories separately (ticking only “Story” keeps the defects); Assignee is the defect's / story's assignee.` +
     (sevSet ? "" : ` <b>No severity found</b> — Jira has no built-in severity; if yours is a custom field named like “Severity”, click <b>Full reload</b> once to bring it in.`);
 
   $("dKpis").innerHTML = [
@@ -1606,13 +1629,9 @@ function renderDefects(){
     : `<p class="hint">No story went from ${esc(C.stg.qaBucket)} back to ${esc(C.stg.devBucket)} in this period.</p>`;
 }
 
-// Tickets for role metrics: project / service / label / sprint filters apply, but not ticket type or assignee
-// (a QA's defects must count even when the screen is filtered to Stories).
-function rolePool(){
-  const sp = $("fSprint").value;
-  return boardIssues().filter(i => !hidden.Project.has(i.Project) && !hidden.Service.has(i.Service) && extraOk(i)
-    && (!sp || (sp === "__active" ? i.SprintState === "active" : i.Sprint === sp)));
-}
+// Tickets for role metrics: every filter applies, the ticket type filter per side (a QA's defects still count when the
+// screen is filtered to Stories); the Assignee filter narrows the people listed instead of the tickets.
+function rolePool(){ return boardIssues().filter(i => passes(i, {type: "split", assignee: false})); }
 const keysOf = list => list.map(i => i.Key || i);
 const lastFinishedSprint = pool => sprintList(pool).filter(s => !s.active).pop();
 
@@ -1659,7 +1678,8 @@ const ratio = v => v == null ? "–" : (Math.round(v * 100) / 100).toString();
 
 function renderRoleView(role){
   const range = prodRange(), pool = rolePool(), C = roleCtx(), roles = teamRoles(), sel = $("pPerson").value;
-  const people = Object.keys(roles).filter(p => roles[p] === role && (!sel || sel === p)).sort();
+  const scope = assigneeScope();
+  const people = Object.keys(roles).filter(p => roles[p] === role && (!sel || sel === p) && (!scope || scope.has(p))).sort();
   const rangeTxt = `${range[0]} → ${range[1]}`, K = (list, label) => ({keys: keysOf(list)});
   const cell = (list, label) => list.length ? dl(list.length, K(list), label) : `<span class="sub">0</span>`;
   $("rlNote").innerHTML = !Object.keys(roles).length
@@ -2816,7 +2836,9 @@ function rtmJira(service, doc){
   const C = roleCtx(), pool = boardIssues().filter(i => !hidden.Project.has(i.Project));
   const mapped = new Set(Object.values(doc.featureMap || {}).flat());
   const work = i => !C.isDefect(i) && !CONTAINER.test(i.IssueType) && !SUBTASK.test(i.IssueType);
-  let stories = pool.filter(i => work(i) && (i.Service === service || mapped.has(i.ParentKey) || (i.Links || []).some(k => mapped.has(k))));
+  // Stories follow the filters at the top (sprint, Filter 1…, ticket type, assignee); not the Services filter, since a
+  // PRD feature can be mapped to Jira features of another service.
+  let stories = pool.filter(i => work(i) && passes(i, {service: false, type: "split"}) && (i.Service === service || mapped.has(i.ParentKey) || (i.Links || []).some(k => mapped.has(k))));
   if(stories.some(i => /stor/i.test(i.IssueType))) stories = stories.filter(i => /stor/i.test(i.IssueType));
   const features = new Map();
   const feature = (key, fallback) => {
