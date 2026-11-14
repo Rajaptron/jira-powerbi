@@ -198,6 +198,12 @@ def fetch(cfg, progress=lambda msg: None):
             usage, _ = field_usage(client, jql, sample=100)
             extra = {r["name"]: r["ids"] for r in usage if r["used_pct"] >= 5}
             extra = dict(list(extra.items())[:25])
+            # Severity lives only on defects (often <5% of tickets) but Defect analysis needs it: always bring it.
+            all_fields = client.fields()
+            for f in all_fields:
+                name = (f.get("name") or "").strip()
+                if f.get("custom") and "severity" in name.lower() and name not in extra:
+                    extra[name] = field_ids_named(all_fields, name)
             for ids in extra.values():
                 want.extend(i for i in ids if i not in want)
         except JiraError:

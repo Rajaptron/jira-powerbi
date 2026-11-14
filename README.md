@@ -271,6 +271,27 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
 
 Sample PRDs to try with the demo data are in `samples/`.
 
+## Defect analysis
+
+The **Defect analysis** page (side menu) looks at defects — the ticket types listed in Settings → Roles (*Bug* by
+default) — for the filters at the top (ticket type and assignee filters don't apply) and a **Defects created in**
+period:
+
+- **Numbers:** defects, still open, reopened, defects per story point, stories with defects, stories sent back to
+  development, and defects not linked to any story.
+- **Defect trend:** defects created per week (periods up to 90 days) or per month, coloured by **priority** or
+  **severity**.
+- **Defects by service** (most first, with defects per story point) and a **priority × severity** table.
+- **Defects per user story:** each story, its **developer**, story points, defects, open, reopened and severities.
+- **Who logged the defects** (reporter) and **defects per story point by developer**.
+- **Reopened defects**, and **stories sent back from testing to development** (a move from the QA bucket, e.g. Ready
+  for Test, to the development bucket, e.g. In Development), with who moved them.
+
+A defect belongs to a story when it's linked to it in Jira (any link type) or created under it. The developer is
+whoever held the story longest in the development bucket. Jira has no built-in severity: if yours is a custom field
+named like "Severity", the app now always pulls it — click **Full reload** once to bring it in. Click any number or
+bar to see its tickets.
+
 ## Role reports: QA, Dev, BA, PM
 
 Set each person's role in **Settings → 4. Team roles** (also: which issue types are defects, default *Bug*, and which

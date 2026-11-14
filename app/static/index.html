@@ -109,7 +109,7 @@ body.side-mini .brand-name{display:none}
 #tabs button.active{background:var(--chip);color:var(--accent);font-weight:650}
 #tabs [data-tab=overview]::before{content:"▦"} #tabs [data-tab=who]::before{content:"◉"} #tabs [data-tab=team]::before{content:"♙"}
 #tabs [data-tab=timesheet]::before{content:"◷"} #tabs [data-tab=report]::before{content:"↗"} #tabs [data-tab=plan]::before{content:"▤"}
-#tabs [data-tab=rtm]::before{content:"⌁"} #tabs [data-tab=tickets]::before{content:"▣"} #tabs [data-tab=settings]::before{content:"⚙\FE0E"}
+#tabs [data-tab=rtm]::before{content:"⌁"} #tabs [data-tab=tickets]::before{content:"▣"} #tabs [data-tab=defects]::before{content:"✱"} #tabs [data-tab=settings]::before{content:"⚙\FE0E"}
 .side-foot{margin-top:auto;padding-top:12px}
 #sideToggle{width:100%;border:0;background:none;color:var(--muted);text-align:left;padding:8px 10px;font-size:12px;white-space:nowrap}
 #sideToggle:hover{color:var(--ink);background:var(--chip)}
@@ -169,7 +169,9 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:60
 .kpi .l{order:-1;font-size:12px;font-weight:500;color:var(--muted)}
 .kpi[data-drill]::after{content:"Click to view tickets";font-size:11px;color:var(--muted);margin-top:2px}
 .kpi .l{font-size:12px;color:var(--muted)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.grid2 > *{min-width:0}
+@media (max-width:1400px){#tab-defects .grid2{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){.grid2{grid-template-columns:1fr}header,main{padding-left:16px;padding-right:16px}
   body{flex-direction:column}
   #side,body.side-mini #side{position:sticky;top:0;width:auto;height:auto;flex-direction:row;align-items:center;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;z-index:7}
@@ -279,6 +281,13 @@ ul.summary{margin:0;padding-left:20px;line-height:1.8}
 tr.muted td{opacity:.45}
 input[type=color]{width:36px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 .kpi.good .v{color:var(--b-done)} .kpi.warn .v{color:var(--b-test)} .kpi.bad .v{color:var(--warn)}
+.vchart{display:flex;align-items:flex-end;gap:6px;height:220px;padding-top:8px;border-bottom:1px solid var(--line);overflow-x:auto}
+.vcol{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+.vcol .tot{font-size:11px;text-align:center}
+.vstack{width:70%;max-width:46px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
+.vstack span{display:block;min-height:2px}
+.vstack span[data-drill]:hover{filter:brightness(1.15)}
+.vlbls{display:flex;gap:6px;overflow:hidden}.vlbls div{flex:1 0 34px;text-align:center;font-size:11px;color:var(--muted);padding-top:4px;white-space:nowrap}
 .rtm-maprow{display:grid;grid-template-columns:minmax(110px,180px) 1fr;gap:10px;align-items:center;margin:6px 0}
 .rtm-maprow .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rtm-cells{display:flex;flex-wrap:wrap;gap:4px}
@@ -327,6 +336,7 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
   <button data-tab="report" title="Stakeholder report">Stakeholder report</button>
   <button data-tab="plan" title="Planning">Planning</button>
   <button data-tab="rtm" title="Traceability">Traceability</button>
+  <button data-tab="defects" title="Defect analysis">Defect analysis</button>
   <button data-tab="tickets" title="All tickets">All tickets</button>
   <button data-tab="settings" title="Settings">Settings</button>
 </nav>
@@ -572,6 +582,31 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
         <div class="tbl-wrap" id="rtmMatrix"></div>
         <p class="hint">A requirement is <b>covered</b> when a user story is linked to it. To link one, type or pick the story key under <b>User stories</b> and press Enter (or ✓ a possible match). Use <b>Status</b> to mark it partially covered, not covered, external or out of scope, and <b>Comment</b> to say why.</p>
       </div>
+    </div>
+  </section>
+
+  <section id="tab-defects" class="hidden">
+    <div class="filters" style="margin:0 0 14px;align-items:flex-end">
+      <label class="f">Defects created in<select id="dPeriod"><option value="0">All time</option><option value="30">Last 30 days</option>
+        <option value="90" selected>Last 90 days</option><option value="180">Last 6 months</option><option value="365">Last 12 months</option></select></label>
+      <span class="hint" id="dNote" style="max-width:760px"></span>
+    </div>
+    <div class="kpis" id="dKpis"></div>
+    <div class="panel"><h2>Defect trend</h2>
+      <div class="filters" style="margin:-4px 0 10px"><label class="f">Split by<select id="dSplit"><option value="priority">Priority</option><option value="severity">Severity</option></select></label></div>
+      <div id="dTrend"></div></div>
+    <div class="grid2">
+      <div class="panel"><h2>Defects by service</h2><div id="dSvc"></div></div>
+      <div class="panel"><h2>Priority × severity</h2><div class="tbl-wrap" id="dMatrix"></div></div>
+    </div>
+    <div class="panel"><h2>Defects per user story</h2><div class="tbl-wrap" id="dStories" style="max-height:480px"></div></div>
+    <div class="grid2">
+      <div class="panel"><h2>Who logged the defects</h2><div class="tbl-wrap" id="dLoggers" style="max-height:420px"></div></div>
+      <div class="panel"><h2>Defects per story point, by developer</h2><div class="tbl-wrap" id="dDevs" style="max-height:420px"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Reopened defects</h2><div class="tbl-wrap" id="dReopen" style="max-height:420px"></div></div>
+      <div class="panel"><h2>Stories sent back from testing to development</h2><div class="tbl-wrap" id="dBack" style="max-height:420px"></div></div>
     </div>
   </section>
 
@@ -928,7 +963,7 @@ $("svcDefaultBtn").onclick = async () => {
     await load(); toast(`Services now come from ${sourceName(src)} everywhere, including the Excel file.`); }
   else { CONFIG = await api("/api/config"); toast("Saved. This field wasn't loaded for every ticket, so click Full reload to apply it to the Excel file."); }
 };
-function hideTabs(){ ["overview","who","team","timesheet","report","plan","rtm","tickets"].forEach(t=>$("tab-"+t).classList.add("hidden")); }
+function hideTabs(){ ["overview","who","team","timesheet","report","plan","rtm","defects","tickets"].forEach(t=>$("tab-"+t).classList.add("hidden")); }
 
 // Project + Service multi-selects. We remember what's *unticked*, so new projects/services
 // from a later refresh show up selected by default.
@@ -1073,7 +1108,7 @@ function render(){
   if(!DATA) return;
   updateFiltersSum();
   const issues = filtered();
-  ({overview:renderOverview, who:renderWho, team:renderTeam, timesheet:renderTimesheet, report:renderReport, plan:renderPlan, rtm:renderRtm, tickets:renderTickets}[currentTab]||(()=>{}))(issues);
+  ({overview:renderOverview, who:renderWho, team:renderTeam, timesheet:renderTimesheet, report:renderReport, plan:renderPlan, rtm:renderRtm, defects:renderDefects, tickets:renderTickets}[currentTab]||(()=>{}))(issues);
   renderDrill();
 }
 
@@ -1449,6 +1484,126 @@ function roleCtx(){
     const t = (moves.get(key) || []).find(t => DATA.buckets.indexOf(t.ToBucket) >= r && t.ToBucket !== t.FromBucket); return t ? t.Date : null; };
   ROLECTX = {isDefect, byKey, moves, storiesOf, defectsOf, devOf, qaOf, stage, devEntered, stg};
   return ROLECTX;
+}
+
+// ---------- Defect analysis ----------
+// Defects = the ticket types in Settings → Roles ("Bug" by default), tied to stories by issue links or parent (roleCtx).
+const PRIO_ORDER = ["highest", "blocker", "critical", "high", "major", "medium", "moderate", "normal", "low", "minor", "lowest", "trivial"];
+const rankOf = v => { const k = PRIO_ORDER.indexOf(String(v).toLowerCase()); return k < 0 ? 99 : k; };
+const sortLevels = vs => vs.sort((a, b) => rankOf(a) - rankOf(b) || String(a).localeCompare(String(b)));
+function levelColor(v){ const r = rankOf(v);
+  return r <= 2 ? "#c2362b" : r <= 4 ? "#e0703a" : r <= 7 ? "#d9a22b" : r <= 9 ? "#3d9a5f" : r <= 11 ? "#2f8fb3" : "#98a2b3"; }
+const severityOf = i => { const f = i.Fields || {}, k = Object.keys(f).find(n => /severity/i.test(n)); return (k && f[k]) || "(Not set)"; };
+const priorityOf = i => i.Priority || "(None)";
+const keyLink = i => `<a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(i.Key)}</a>`;
+function renderDefects(){
+  const C = roleCtx(), pool = rolePool(), days = +$("dPeriod").value;
+  const from = days ? new Date(Date.now() - days * 864e5).toISOString().slice(0, 10) : "", range = [from, ""];
+  const defects = pool.filter(i => C.isDefect(i) && inRange(i.Created, range)), dset = new Set(defects.map(d => d.Key));
+  const keysOf = list => list.map(i => i.Key || i);
+  // Stories (any non-defect work item) active in the period: not closed before it started.
+  const stories = pool.filter(i => !C.isDefect(i) && !CONTAINER.test(i.IssueType) && !SUBTASK.test(i.IssueType) && (!from || !i.Resolved || i.Resolved >= from));
+  const dOf = s => [...(C.defectsOf.get(s.Key) || [])].filter(k => dset.has(k));
+  const hit = stories.map(s => ({s, ds: dOf(s), dev: C.devOf(s.Key) || "(No developer yet)"})).filter(x => x.ds.length)
+    .sort((a, b) => b.ds.length - a.ds.length || natural(a.s.Key, b.s.Key));
+  const linked = new Set(hit.flatMap(x => x.ds)), unlinked = defects.filter(d => !linked.has(d.Key));
+  const spAll = stories.reduce((a, s) => a + s.StoryPoints, 0), dLinkedToSp = hit.filter(x => x.s.StoryPoints).reduce((a, x) => a + x.ds.length, 0);
+  const density = spAll ? dLinkedToSp / spAll : null;
+  const open = defects.filter(d => !isDone(d)), reopened = defects.filter(d => d.TimesReopened > 0);
+  // Sent back: a story moved from the QA bucket (e.g. Ready for Test / In Testing) to the development bucket.
+  const skeys = new Set(stories.map(s => s.Key));
+  const back = (DATA.transitions || []).filter(t => skeys.has(t.Key) && t.FromBucket === C.stg.qaBucket && t.ToBucket === C.stg.devBucket && inRange(t.Date, range));
+  const backBy = new Map(); back.forEach(t => { if(!backBy.has(t.Key)) backBy.set(t.Key, []); backBy.get(t.Key).push(t); });
+  const sevSet = defects.some(d => severityOf(d) !== "(Not set)");
+  const period = $("dPeriod").selectedOptions[0].textContent.toLowerCase();
+  $("dNote").innerHTML = `${defects.length} ${esc((CONFIG.defect_types || ["Bug"]).join(" / "))} tickets created ${period}, for the filters at the top (ticket type and assignee filters don't apply here).` +
+    (sevSet ? "" : ` <b>No severity found</b> — Jira has no built-in severity; if yours is a custom field named like “Severity”, click <b>Full reload</b> once to bring it in.`);
+
+  $("dKpis").innerHTML = [
+    ["Defects", defects.length, {keys: keysOf(defects)}], ["Still open", open.length, {keys: keysOf(open)}],
+    ["Reopened", reopened.length, {keys: keysOf(reopened)}],
+    ["Defects per story point", density == null ? "–" : density.toFixed(2), null],
+    ["Stories with defects", `${hit.length} <span class="sub">(${stories.length ? Math.round(100 * hit.length / stories.length) : 0}%)</span>`, {keys: hit.map(x => x.s.Key)}],
+    ["Sent back to development", `${backBy.size} <span class="sub">stories · ${back.length} times</span>`, {keys: [...backBy.keys()]}],
+    ["Not linked to a story", unlinked.length, {keys: keysOf(unlinked)}],
+  ].map(kpiTile).join("");
+
+  // Trend: per week (≤ 90 days) or per month, stacked by priority or severity.
+  const split = $("dSplit").value, levelOf = split === "severity" ? severityOf : priorityOf;
+  const weekly = days && days <= 90;
+  const bucketOf = d => { if(!weekly) return d.slice(0, 7);
+    const t = toDate(d.slice(0, 10)); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+  const periods = uniq(defects.map(d => bucketOf(d.Created))), levels = sortLevels(uniq(defects.map(levelOf)));
+  const maxP = Math.max(1, ...periods.map(p => defects.filter(d => bucketOf(d.Created) === p).length));
+  const plabel = p => weekly ? new Date(p + "T00:00:00Z").toLocaleDateString(undefined, {day: "numeric", month: "short", timeZone: "UTC"})
+    : new Date(p + "-01T00:00:00Z").toLocaleDateString(undefined, {month: "short", year: "2-digit", timeZone: "UTC"});
+  $("dTrend").innerHTML = periods.length ? `<div class="legend">${levels.map(l => `<span><i class="sw" style="background:${levelColor(l)}"></i>${esc(l)}</span>`).join("")}</div>
+    <div class="vchart">${periods.map(p => { const inP = defects.filter(d => bucketOf(d.Created) === p);
+      return `<div class="vcol"><div class="tot">${dl(inP.length, {keys: keysOf(inP)}, `Defects · ${plabel(p)}`)}</div><div class="vstack" style="height:${100 * inP.length / maxP}%">${
+        levels.map(l => { const x = inP.filter(d => levelOf(d) === l); return x.length ? `<span style="flex:${x.length};background:${levelColor(l)}" title="${esc(l)}: ${x.length}"${drill({keys: keysOf(x)}, `${l} defects · ${plabel(p)}`)}></span>` : ""; }).join("")}</div></div>`; }).join("")}</div>
+    <div class="vlbls">${periods.map(p => `<div>${plabel(p)}</div>`).join("")}</div>
+    <p class="hint">Defects created per ${weekly ? "week" : "month"}, coloured by ${split}. Click a bar for its tickets.</p>` : `<p class="hint">No defects in this period.</p>`;
+
+  // By service, with defects per story point.
+  const svcs = uniq(defects.map(d => d.Service)).map(sv => { const ds = defects.filter(d => d.Service === sv), st = stories.filter(s => s.Service === sv);
+    return {sv, ds, sp: st.reduce((a, s) => a + s.StoryPoints, 0)}; }).sort((a, b) => b.ds.length - a.ds.length);
+  const maxS = Math.max(1, ...svcs.map(x => x.ds.length));
+  $("dSvc").innerHTML = svcs.length ? svcs.map(x => `<div class="barrow"><div class="n" title="${esc(x.sv)}">${esc(x.sv)}</div>
+      <div class="bar" style="width:${Math.max(3, 100 * x.ds.length / maxS)}%"><span style="width:100%;background:${RED}"${drill({keys: keysOf(x.ds)}, `${x.sv} · defects`)}>${x.ds.length}</span></div>
+      <div class="tot">${x.sp ? (x.ds.length / x.sp).toFixed(2) + "/sp" : "–"}</div></div>`).join("") +
+    `<p class="hint">Right column: defects per story point of that service's stories in the period.${svcs[0] ? ` Most defects: <b>${esc(svcs[0].sv)}</b> (${svcs[0].ds.length}).` : ""}</p>` : `<p class="hint">No defects in this period.</p>`;
+
+  // Priority × severity.
+  const prios = sortLevels(uniq(defects.map(priorityOf))), sevs = sortLevels(uniq(defects.map(severityOf)));
+  const cell = (list, label) => list.length ? dl(list.length, {keys: keysOf(list)}, label) : "–";
+  $("dMatrix").innerHTML = defects.length ? `<table><thead><tr><th>Priority ↓ / Severity →</th>${sevs.map(v => `<th class="num">${esc(v)}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>` +
+    prios.map(p => { const row = defects.filter(d => priorityOf(d) === p);
+      return `<tr><td><span class="sw" style="background:${levelColor(p)}"></span>${esc(p)}</td>${sevs.map(v => `<td class="num">${cell(row.filter(d => severityOf(d) === v), `${p} · ${v}`)}</td>`).join("")}<td class="num"><b>${cell(row, p)}</b></td></tr>`; }).join("") +
+    `<tr class="total"><td>Total</td>${sevs.map(v => `<td class="num">${cell(defects.filter(d => severityOf(d) === v), v)}</td>`).join("")}<td class="num">${cell(defects, "All defects")}</td></tr></tbody></table>` : `<p class="hint">No defects in this period.</p>`;
+
+  // Defects per user story, with the story's developer.
+  $("dStories").innerHTML = hit.length ? `<table><thead><tr><th>Story</th><th>Summary</th><th>Service</th><th>Developer</th><th class="num">Story points</th><th class="num">Defects</th><th class="num">Still open</th><th class="num">Reopened</th><th>Severity</th></tr></thead><tbody>` +
+    hit.map(x => { const ds = x.ds.map(k => C.byKey.get(k)).filter(Boolean), sev = sortLevels(uniq(ds.map(severityOf)).filter(v => v !== "(Not set)"));
+      return `<tr><td>${keyLink(x.s)}</td><td class="wrap">${esc(x.s.Summary)}</td><td>${esc(x.s.Service)}</td><td>${esc(x.dev)}</td>
+        <td class="num">${fmt(x.s.StoryPoints)}</td><td class="num"><b>${dl(ds.length, {keys: x.ds}, `Defects on ${x.s.Key}`)}</b></td>
+        <td class="num">${cell(ds.filter(d => !isDone(d)), `Open defects on ${x.s.Key}`)}</td><td class="num">${cell(ds.filter(d => d.TimesReopened > 0), `Reopened defects on ${x.s.Key}`)}</td>
+        <td>${sev.map(v => `<span class="pill" style="background:${levelColor(v)}">${esc(v)}</span>`).join(" ") || "–"}</td></tr>`; }).join("") + `</tbody></table>` +
+    `<p class="hint">Developer = who held the story longest in the ${esc(C.stg.devBucket)} bucket (Settings → Roles).</p>`
+    : `<p class="hint">No defects are linked to stories in this period. Defects count against a story when they're linked to it in Jira (any link type) or created under it.</p>`;
+
+  // Who logged them.
+  const loggers = uniq(defects.map(d => d.Reporter || "(Unknown)")).map(p => { const ds = defects.filter(d => (d.Reporter || "(Unknown)") === p); return {p, ds}; })
+    .sort((a, b) => b.ds.length - a.ds.length);
+  $("dLoggers").innerHTML = loggers.length ? `<table><thead><tr><th>Logged by</th><th class="num">Defects</th><th class="num">% of all</th><th class="num">Still open</th><th class="num">Reopened</th><th class="num">Linked to a story</th></tr></thead><tbody>` +
+    loggers.map(({p, ds}) => `<tr><td>${esc(p)}</td><td class="num"><b>${cell(ds, `Logged by ${p}`)}</b></td><td class="num">${Math.round(100 * ds.length / defects.length)}%</td>
+      <td class="num">${cell(ds.filter(d => !isDone(d)), `${p} · open`)}</td><td class="num">${cell(ds.filter(d => d.TimesReopened > 0), `${p} · reopened`)}</td>
+      <td class="num">${cell(ds.filter(d => linked.has(d.Key)), `${p} · linked to a story`)}</td></tr>`).join("") + `</tbody></table>` : `<p class="hint">No defects in this period.</p>`;
+
+  // Defects per story point, by developer.
+  const devs = new Map(); stories.forEach(s => { const dv = C.devOf(s.Key); if(!dv) return;
+    if(!devs.has(dv)) devs.set(dv, {stories: [], sp: 0, ds: [], back: 0}); const r = devs.get(dv);
+    r.stories.push(s.Key); r.sp += s.StoryPoints; r.ds.push(...dOf(s)); r.back += (backBy.get(s.Key) || []).length; });
+  const devRows = [...devs.entries()].filter(([, r]) => r.stories.length).sort((a, b) => (b[1].sp ? b[1].ds.length / b[1].sp : 0) - (a[1].sp ? a[1].ds.length / a[1].sp : 0) || b[1].ds.length - a[1].ds.length);
+  $("dDevs").innerHTML = devRows.length ? `<table><thead><tr><th>Developer</th><th class="num">Stories</th><th class="num">Story points</th><th class="num">Defects</th><th class="num">Per story point</th><th class="num">Sent back</th></tr></thead><tbody>` +
+    devRows.map(([dv, r]) => `<tr><td>${esc(dv)}</td><td class="num">${dl(r.stories.length, {keys: r.stories}, `${dv} · stories`)}</td><td class="num">${fmt(r.sp)}</td>
+      <td class="num">${r.ds.length ? dl(r.ds.length, {keys: r.ds}, `Defects on ${dv}'s stories`) : "0"}</td><td class="num"><b>${r.sp ? (r.ds.length / r.sp).toFixed(2) : "–"}</b></td><td class="num">${r.back}</td></tr>`).join("") +
+    `<tr class="total"><td>All</td><td class="num">${stories.length}</td><td class="num">${fmt(spAll)}</td><td class="num">${dLinkedToSp}</td><td class="num">${density == null ? "–" : density.toFixed(2)}</td><td class="num">${back.length}</td></tr></tbody></table>` +
+    `<p class="hint">Stories active in the period (not closed before it began); defects linked to them and created in the period.</p>` : `<p class="hint">No stories with a developer in this period.</p>`;
+
+  // Reopened defects.
+  const reo = reopened.slice().sort((a, b) => b.TimesReopened - a.TimesReopened || natural(a.Key, b.Key));
+  $("dReopen").innerHTML = reo.length ? `<table><thead><tr><th>Defect</th><th>Summary</th><th>Service</th><th>Priority</th><th class="num">Times reopened</th><th>Assignee</th></tr></thead><tbody>` +
+    reo.map(d => `<tr><td>${keyLink(d)}</td><td class="wrap">${esc(d.Summary)}</td><td>${esc(d.Service)}</td><td>${esc(priorityOf(d))}</td><td class="num"><b>${d.TimesReopened}</b></td><td>${esc(d.Assignee)}</td></tr>`).join("") +
+    `</tbody></table><p class="hint">${reo.length} of ${defects.length} defects (${defects.length ? Math.round(100 * reo.length / defects.length) : 0}%) were reopened after being closed.</p>` : `<p class="hint">No defect in this period was reopened.</p>`;
+
+  // Stories sent back from testing.
+  const backRows = [...backBy.entries()].map(([k, ts]) => ({s: C.byKey.get(k), ts})).filter(x => x.s).sort((a, b) => b.ts.length - a.ts.length || b.ts[b.ts.length - 1].Date.localeCompare(a.ts[a.ts.length - 1].Date));
+  $("dBack").innerHTML = backRows.length ? `<table><thead><tr><th>Story</th><th>Summary</th><th>Developer</th><th class="num">Times</th><th>Last move</th><th>Moved by</th></tr></thead><tbody>` +
+    backRows.map(({s, ts}) => { const t = ts[ts.length - 1];
+      return `<tr><td>${keyLink(s)}</td><td class="wrap">${esc(s.Summary)}</td><td>${esc(C.devOf(s.Key) || "–")}</td><td class="num"><b>${ts.length}</b></td>
+        <td>${esc(t.From)} → ${esc(t.To)}<div class="sub">${esc(t.Date.slice(0, 10))}</div></td><td>${esc(t.MovedBy || "–")}</td></tr>`; }).join("") +
+    `</tbody></table><p class="hint">A move from the ${esc(C.stg.qaBucket)} bucket (e.g. Ready for Test) back to the ${esc(C.stg.devBucket)} bucket (e.g. In Development).</p>`
+    : `<p class="hint">No story went from ${esc(C.stg.qaBucket)} back to ${esc(C.stg.devBucket)} in this period.</p>`;
 }
 
 // Tickets for role metrics: project / service / label / sprint filters apply, but not ticket type or assignee
@@ -3243,6 +3398,7 @@ const PAGE_DESC = {
   team: "Team size, roles, workload and productivity", timesheet: "Hours logged per person and per ticket",
   report: "A delivery report ready for stakeholders", plan: "Can the selected work be finished by the date you need?",
   rtm: "PRD requirements traced to Jira features and user stories", tickets: "Every ticket, searchable and exportable",
+  defects: "Where defects come from, who finds them, and how much work goes back from testing",
   settings: "Appearance, Jira connection and board setup",
 };
 function showTab(t){
@@ -3250,7 +3406,7 @@ function showTab(t){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
   $("pageTitle").textContent = document.querySelector(`#tabs button[data-tab=${t}]`).textContent;
   $("pageDesc").textContent = PAGE_DESC[t] || "";
-  ["overview","who","team","timesheet","report","plan","rtm","tickets","settings"].forEach(x=>$("tab-"+x).classList.toggle("hidden", x!==t || (!DATA && x!=="settings")));
+  ["overview","who","team","timesheet","report","plan","rtm","defects","tickets","settings"].forEach(x=>$("tab-"+x).classList.toggle("hidden", x!==t || (!DATA && x!=="settings")));
   $("filters").classList.toggle("hidden", t==="settings" || !DATA);
   $("drillHint").classList.toggle("hidden", t==="settings" || !DATA);
   if(t==="settings") closeDrill();
@@ -3283,7 +3439,7 @@ function updateFiltersSum(){
   $("filtersSum").textContent = active.length ? `${active.length} applied · ${active.join(" · ")}` : "Nothing filtered — showing everything";
 }
 ["fSprint","fMetric","fGroup","tsFrom","tsTo","tsGroup","fBucket","pPerson","pPeriod","pFrom","pTo","pVelocity","rPeriod","rFrom","rTo","flowPeriod","flowDone",
- "planOrder","planDefaultSp","planSprints","planSprintDays","planStart","planTarget","planNormalHours","planHours","planSat","planSun","planHolidays"].forEach(id=>$(id).onchange=render);
+ "dPeriod","dSplit","planOrder","planDefaultSp","planSprints","planSprintDays","planStart","planTarget","planNormalHours","planHours","planSat","planSun","planHolidays"].forEach(id=>$(id).onchange=render);
 $("planSearch").oninput = render;
 $("planAll").onclick = () => { PLAN.excluded = []; savePlan(); render(); };
 $("planNone").onclick = () => { PLAN.excluded = planScope().all.map(i => i.Key); savePlan(); render(); };

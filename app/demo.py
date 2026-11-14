@@ -198,6 +198,7 @@ def generate(seed=7, cfg=None):
                        created_dt.date(), resolved, "Bug", 0.0, SPRINT_NOW, False)
             bug["Summary"] = "Bug: " + story["Summary"].lower()
             bug["Links"] = [story["Key"]]
+            bug["Fields"] = dict(bug["Fields"], Severity=rnd.choice(["Critical", "Major", "Major", "Minor", "Minor", "Minor", "Trivial"]))
             story["Links"].append(key)
             bend = dt.datetime.combine(resolved, dt.time(17)) if resolved else now - dt.timedelta(hours=2)
             add(bug, _history(rnd, created_dt, max(bend, created_dt + dt.timedelta(hours=2)), status, people, rnd.random() < 0.15,
