@@ -22,13 +22,15 @@ and worklogs, and gives you:
 | Any ticket list, searchable, exportable | *All tickets* |
 
 The pages are in the **side menu** on the left (**« Collapse menu** shrinks it to icons). Filters (projects, services,
-ticket types, assignees, sprint, plus the **And filter by** field) apply to every tab. They're searchable
+ticket types, assignees, sprint, plus any **Filter 1, 2, …** you add) apply to every tab. They're searchable
 multi-selects; hover an option and click **only** to pick just that one. Picking projects narrows every other list
 to what exists in those projects. **Show by** switches the overview charts between buckets and raw Jira statuses.
 
-**And filter by** adds a second filter next to Services (this is also where the Labels filter lives): Labels, Parent / Epic, Fix version, Components, Priority,
-Reporter or one of your custom fields. Pick the field, then tick the values in the list that appears beside it —
-e.g. *Services: Billing* + *Fix version: Release 14*. (Fix versions arrive with the next refresh from Jira.)
+**Filter 1, Filter 2, …** — click **+ Add filter** under the standard filters to add as many as you need: pick the
+field (Labels, Parent / Epic, Fix version, Components, Priority, Reporter or a custom field), then tick its values —
+e.g. *Services: Billing* + *Filter 1: Fix version = Release 14* + *Filter 2: Labels = api*. Each filter narrows the
+ones after it; **✕** removes one. (Fix versions arrive with the next refresh from Jira.) The **Filters** header folds
+the whole section away (it remembers) and always shows what's applied.
 
 **Click any number** — a KPI tile, a bar segment, a matrix cell, a person's count, a timesheet total — and the
 matching tickets open in a panel at the bottom of the screen (searchable, sortable, exportable to CSV). Press Esc
@@ -63,12 +65,27 @@ enter the Jira URL and token in Settings. Everyone uses their own API token, so 
   Return. Or: System Settings → Privacy & Security → scroll down → **Open Anyway** next to "start.command".
 - **Windows:** install Python 3 from python.org first and tick **"Add python.exe to PATH"**.
 
+## Signing in
+
+The app opens on a **sign-in screen** until it has a working Jira login on this computer:
+
+- **Jira site URL**, **Work email** and your **API token** (create one at
+  https://id.atlassian.com/manage-profile/security/api-tokens — your company uses SSO? you still need this token).
+  Jira Server/Data Center: leave the email empty and paste a Personal Access Token.
+- **Continue with Jira** checks the details with Jira first; only a login that works is saved (in `config.json`,
+  readable only by you). **Need help connecting?** and **Continue with SSO** explain the steps.
+- **Keep me signed in** on: you stay signed in after closing the app. Off: you sign in again each time the app starts.
+- **Log out** (top right, under your name) removes the token from this computer. Settings and the data already
+  pulled stay, so signing in again brings you straight back.
+- **Explore with demo data** is offered only when there's no real data on this computer, so it never replaces it.
+
+**Appearance** (Settings, top): Light, Dark or Match my computer — remembered on this device.
+
 ## First-time setup (in the app → Settings)
 
-1. **Jira URL** — e.g. `https://yourcompany.atlassian.net` (pasting a board/issue link is fine too).
-2. **Email + API token** — create a token at https://id.atlassian.com/manage-profile/security/api-tokens.
-   Jira Server/Data Center: leave email empty and paste a Personal Access Token.
-3. **Save & test connection** → tick the projects you want.
+1. Sign in (above). If no projects are chosen yet, the app opens Settings for you.
+2. (Settings → Connect to Jira is where you change the URL, email or token later.)
+3. Tick the projects you want.
 4. **A "service" is…** — choose how your org splits work: Component, Project, Label, Epic, or any custom field
    (e.g. a "Team" or "Service" field).
 5. **Save & refresh data.** After the first refresh, check *Status mapping* — the app auto-maps statuses

@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
     "include_worklogs": True, "worklog_days": 90, "include_history": True,
     "buckets": None, "status_buckets": {}, "hidden_statuses": [], "status_order": [], "planning": {},
     "roles": {}, "defect_types": ["Bug"], "stages": {},
+    "display_name": "", "keep_signed_in": True,  # who signed in, and whether the token survives an app restart
 }
 
 state = {"running": False, "message": "", "error": ""}
@@ -228,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 client = JiraClient(cfg["jira_url"], cfg.get("email", ""), cfg["token"])
                 me = client.myself()
+                cfg["display_name"] = me.get("displayName") or cfg.get("display_name", "")
+                save_config(cfg)
                 note = ""
                 if client.base_url != cfg["jira_url"].strip().rstrip("/"):
                     # http:// → https://, or a renamed site: save the real address so searches aren't redirected.
@@ -241,6 +244,28 @@ class Handler(BaseHTTPRequestHandler):
                                         "projects": projects, "custom_fields": fields})
             except (JiraError, KeyError) as e:
                 return self._send(200, {"ok": False, "error": str(e) or "Jira URL and token are required."})
+        if path == "/api/login":
+            # Sign in = check the Jira site, email and token against Jira first; only a working login is saved.
+            url, token = (body.get("jira_url") or "").strip(), body.get("token") or ""
+            if not url or not token:
+                return self._send(200, {"ok": False, "error": "Enter your Jira site URL and API token."})
+            try:
+                client = JiraClient(url, body.get("email", "").strip(), token)
+                me = client.myself()
+            except JiraError as e:
+                return self._send(200, {"ok": False, "error": str(e) or "Jira didn't accept these details."})
+            cfg = load_config()
+            cfg.update(jira_url=client.base_url, email=body.get("email", "").strip(), token=token,
+                       display_name=me.get("displayName") or "", keep_signed_in=bool(body.get("keep", True)))
+            save_config(cfg)
+            return self._send(200, {"ok": True, "user": cfg["display_name"] or cfg["email"],
+                                    "has_projects": bool(cfg.get("projects") or cfg.get("jql"))})
+        if path == "/api/logout":
+            # Log out = forget the token on this computer; settings and pulled data stay for the next sign-in.
+            cfg = load_config()
+            cfg["token"] = ""
+            save_config(cfg)
+            return self._send(200, {"ok": True})
         if path == "/api/rtm/upload":
             # A PRD for one service: pull out its requirements; keep links for requirement ids that survive.
             try:
@@ -346,6 +371,10 @@ def main():
         return
 
     url = "http://127.0.0.1:%d" % args.port
+    cfg = load_config()
+    if cfg.get("token") and not cfg.get("keep_signed_in", True):
+        cfg["token"] = ""  # "Keep me signed in" was off: sign in again after a restart
+        save_config(cfg)
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # local machine only
     except OSError:

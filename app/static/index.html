@@ -6,53 +6,148 @@
 <title>Jira Insights</title>
 <style>
 :root{
-  --bg:#f6f7f9;--panel:#fff;--ink:#1d2330;--muted:#667085;--line:#e4e7ec;--accent:#3b5bdb;--accent-ink:#fff;
-  --b-ref:#a78bfa;--b-todo:#94a3b8;--b-dev:#3b82f6;--b-test:#f59e0b;--b-done:#22a06b;--warn:#b42318;--chip:#eef2ff;
+  --bg:#f5f7fb;--panel:#fff;--ink:#1b2133;--muted:#6b7385;--line:#e6e9f0;--accent:#3f5bd8;--accent-ink:#fff;
+  --b-ref:#7c5cd6;--b-todo:#94a3b8;--b-dev:#3f5bd8;--b-test:#d98a2b;--b-done:#3d9a5f;--warn:#c2362b;--chip:#eef2ff;--soft:#f0f3fa;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#0f1218;--panel:#171b23;--ink:#e6e8ee;--muted:#98a2b3;--line:#2a303c;--accent:#7c93ff;--accent-ink:#0f1218;
-  --b-ref:#b9a2ff;--b-todo:#7d8aa0;--b-dev:#5b9bff;--b-test:#f5b544;--b-done:#3cc488;--warn:#ff8a7a;--chip:#232a3b;}}
+  --b-ref:#a98cf0;--b-todo:#7d8aa0;--b-dev:#6f86ff;--b-test:#e9a24a;--b-done:#4cb876;--warn:#ff8a7a;--chip:#232a3b;--soft:#1c2130;}}
+:root[data-theme=dark]{
+  --bg:#0f1218;--panel:#171b23;--ink:#e6e8ee;--muted:#98a2b3;--line:#2a303c;--accent:#7c93ff;--accent-ink:#0f1218;
+  --b-ref:#a98cf0;--b-todo:#7d8aa0;--b-dev:#6f86ff;--b-test:#e9a24a;--b-done:#4cb876;--warn:#ff8a7a;--chip:#232a3b;--soft:#1c2130;}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 body{display:flex;min-height:100vh}
 .app{flex:1;min-width:0;display:flex;flex-direction:column}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-header .page-title{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+header{display:flex;flex-wrap:nowrap;gap:16px;align-items:center;justify-content:space-between;padding:14px 28px;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header .page-title{font-size:22px;font-weight:700;margin:0;letter-spacing:-.015em}
+header > div:first-child{flex:1;min-width:0}
+#metaLine{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head-actions{display:flex;gap:8px;flex-wrap:nowrap;align-items:center;flex:none}
+.head-actions > *{flex:none}
+.user{display:flex;align-items:center;gap:10px;margin-left:8px}
+.avatar{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:var(--accent);font-style:normal}
+.user .avatar{background:var(--chip);color:var(--accent)}
+.user b{display:block;font-size:13px;line-height:1.2}
+.user a{font-size:12px;font-weight:600;text-decoration:none}
+.user a:hover{text-decoration:underline}
+.dd-menu.right{left:auto;right:0;min-width:220px}
+.dd-menu .mi{display:block;width:100%;text-align:left;border:0;background:none;border-radius:6px;padding:8px 10px;color:var(--ink);text-decoration:none}
+.dd-menu .mi:hover{background:var(--chip)}
+.page-desc{color:var(--muted);font-size:14px;margin:0 0 14px}
+.foot-note{color:var(--muted);font-size:12px;margin:18px 0 6px}
+.theme-pick{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.theme-pick button{display:flex;gap:12px;align-items:center;padding:12px 16px;border-radius:12px;min-width:250px;text-align:left}
+.theme-pick button.on{border:2px solid var(--accent);background:var(--chip)}
+.theme-pick button.on b{color:var(--accent)}
+.theme-pick .tp{width:52px;height:40px;border-radius:7px;border:1px solid var(--line);position:relative;overflow:hidden;flex:none}
+.theme-pick .tp::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:9px;border-radius:3px;background:#3f5bd8}
+.theme-pick .tp.light{background:#fff}.theme-pick .tp.dark{background:#1b2133}.theme-pick .tp.auto{background:linear-gradient(135deg,#fff 50%,#1b2133 50%)}
+.theme-pick .sub{display:block}
+.login{position:fixed;inset:0;z-index:60;display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);background:var(--panel);overflow:auto}
+.login.hidden{display:none}
+.login-art{position:relative;overflow:hidden;background:#17204d;color:#fff;padding:44px 52px;display:flex;flex-direction:column;min-height:100vh}
+.login-art::after{content:"";position:absolute;left:-10%;right:18%;bottom:-38%;height:72%;border-radius:50%;background:#26357a;opacity:.85}
+.login-art > *{position:relative;z-index:1}
+.login-brand{display:flex;align-items:center;gap:14px;font-size:18px;font-weight:700}
+.login-brand span{padding-left:14px;border-left:1px solid #3a4685}
+.login-brand .logo{width:42px;height:42px;border-radius:11px;background:#4560e0;display:grid;place-items:center;font-weight:800}
+.login-tag{align-self:flex-start;margin-top:56px;background:#2b3670;color:#c9d2ff;border-radius:14px;padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:.06em}
+.login-hero{font-size:44px;line-height:1.12;margin:30px 0 16px;letter-spacing:-.02em}
+.login-lead{color:#c6cbe6;font-size:16px;max-width:420px;margin:0}
+.login-stats{display:flex;gap:56px;margin-top:auto;padding-top:40px}
+.login-stats b{display:block;font-size:28px}
+.login-stats span{color:#c6cbe6;font-size:13px}
+.login-glance{margin-top:26px;background:#1d2858;border:1px solid #34408a;border-radius:14px;padding:20px 22px;max-width:520px}
+.login-glance h4{margin:0 0 14px;font-size:15px}
+.login-glance .g{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:10px;margin:9px 0;font-size:12px;color:#c6cbe6}
+.login-glance .g i{display:block;height:9px;border-radius:5px}
+.login-foot{color:#9aa3cf;font-size:12px;margin:26px 0 0}
+.login-side{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.login-form{width:100%;max-width:440px}
+.login-form h2{font-size:38px;margin:0 0 6px;letter-spacing:-.02em}
+.login-form > .sub{font-size:15px;margin:0 0 30px;display:block}
+.login-form label.f{font-size:12px;margin-bottom:16px;color:var(--ink)}
+.login-form input:not([type=checkbox]){padding:11px 12px;font-size:14px;width:100%}
+.login-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin:2px 0 18px}
+.login-row label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.login-row a{font-weight:600;text-decoration:none}
+.login-or{text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin:18px 0 10px}
+.login-form .wide{width:100%;padding:11px 14px;text-align:left;font-weight:650}
+.login-help{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;margin:0 0 14px}
+.login-help p{margin:0 0 6px}.login-help p:last-child{margin:0}
+.login-err{color:var(--warn);font-size:13px;margin:0 0 12px}
+.login-note{color:var(--muted);font-size:13px;margin:22px 0 0}
+.login-fine{color:var(--muted);font-size:12px;margin:26px 0 0}
+@media (max-width:900px){.login{display:block}.login-art{min-height:auto;padding:28px 24px}.login-hero{font-size:32px}.login-stats{gap:28px}.login-glance{display:none}}
 /* Side menu */
 #side{position:sticky;top:0;height:100vh;width:236px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 12px;overflow-y:auto;z-index:6;transition:width .18s}
-.brand{display:flex;align-items:center;gap:10px;padding:2px 6px 18px}
-.brand .logo{width:34px;height:34px;flex:none;border-radius:10px;background:linear-gradient(135deg,var(--accent),#a06cff);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
-.brand h1{font-size:16px;line-height:1.2;white-space:nowrap}
+.brand{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:4px 10px 18px}
+.brand-logo{display:block;height:22px;width:auto;mix-blend-mode:multiply}
+.brand-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+:root[data-theme=dark] .brand-logo{filter:invert(1);mix-blend-mode:screen}
+@media (prefers-color-scheme:dark){:root:not([data-theme]) .brand-logo{filter:invert(1);mix-blend-mode:screen}}
+.brand-logo.inv{filter:invert(1);mix-blend-mode:screen;height:26px}
+body.side-mini .brand{padding:4px 0 18px;align-items:center}
+body.side-mini .brand-logo{height:auto;width:46px}
+body.side-mini .brand-name{display:none}
+.brand .logo{width:40px;height:40px;flex:none;border-radius:11px;background:#3f5bd8;color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px}
+.brand h1{font-size:16px;line-height:1.2;white-space:nowrap;margin:0}
 .brand .badge{margin:3px 0 0}
 .side-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 10px 6px;white-space:nowrap}
 #tabs{display:flex;flex-direction:column;gap:2px}
-#tabs button{display:flex;align-items:center;gap:11px;border:0;border-radius:9px;padding:9px 10px;text-align:left;color:var(--muted);font-weight:500;background:none;white-space:nowrap;overflow:hidden}
-#tabs button::before{flex:none;width:22px;text-align:center;font-size:16px}
+#tabs button{display:flex;align-items:center;gap:11px;border:0;border-radius:10px;padding:10px 12px;text-align:left;color:color-mix(in srgb,var(--ink) 78%,var(--muted));font-weight:500;background:none;white-space:nowrap;overflow:hidden}
+#tabs button::before{flex:none;width:20px;text-align:center;font-size:15px;color:var(--muted)}
+#tabs button.active::before{color:var(--accent)}
 #tabs button:hover{background:var(--chip);color:var(--ink)}
-#tabs button.active{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:650;box-shadow:inset 3px 0 0 var(--accent)}
-#tabs [data-tab=overview]::before{content:"📊"} #tabs [data-tab=who]::before{content:"🧑‍💻"} #tabs [data-tab=team]::before{content:"👥"}
-#tabs [data-tab=timesheet]::before{content:"⏱️"} #tabs [data-tab=report]::before{content:"📈"} #tabs [data-tab=plan]::before{content:"🗓️"}
-#tabs [data-tab=rtm]::before{content:"🔗"} #tabs [data-tab=tickets]::before{content:"🎫"} #tabs [data-tab=settings]::before{content:"⚙️"}
+#tabs button.active{background:var(--chip);color:var(--accent);font-weight:650}
+#tabs [data-tab=overview]::before{content:"▦"} #tabs [data-tab=who]::before{content:"◉"} #tabs [data-tab=team]::before{content:"♙"}
+#tabs [data-tab=timesheet]::before{content:"◷"} #tabs [data-tab=report]::before{content:"↗"} #tabs [data-tab=plan]::before{content:"▤"}
+#tabs [data-tab=rtm]::before{content:"⌁"} #tabs [data-tab=tickets]::before{content:"▣"} #tabs [data-tab=settings]::before{content:"⚙\FE0E"}
 .side-foot{margin-top:auto;padding-top:12px}
 #sideToggle{width:100%;border:0;background:none;color:var(--muted);text-align:left;padding:8px 10px;font-size:12px;white-space:nowrap}
 #sideToggle:hover{color:var(--ink);background:var(--chip)}
 body.side-mini #side{width:68px}
-body.side-mini .brand h1,body.side-mini .side-label{display:none}
+body.side-mini .side-label{display:none}
 body.side-mini #tabs button{font-size:0;justify-content:center;padding:10px 0}
 body.side-mini #tabs button::before{font-size:18px}
 body.side-mini #sideToggle{text-align:center}
 h1{font-size:18px;margin:0}
 h2{font-size:15px;margin:0 0 12px}
 .sub{color:var(--muted);font-size:12px}
-.badge{display:inline-block;background:var(--b-test);color:#000;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-left:6px}
+.badge{display:inline-block;background:#fcefc7;color:#7a5200;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-left:6px}
 button,.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer;text-decoration:none;display:inline-block;transition:background .12s,border-color .12s,box-shadow .12s}
 button:hover:not(:disabled),.btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
 button.primary:hover:not(:disabled),.btn.primary:hover{filter:brightness(1.08)}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 button:disabled{opacity:.55;cursor:default}
 main{padding:22px 28px;max-width:1500px;width:100%;margin:0 auto}
-#filters{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px;gap:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
-#filters select,#filters .dd button{min-width:130px;text-align:left}
+/* Filters: an accordion card */
+.filters-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.filters-box.hidden{display:none}
+.fb-head{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;border-radius:14px;padding:12px 18px;text-align:left}
+.fb-head:hover{background:var(--soft)}
+.fb-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:none}
+.fb-sum{flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fb-chev{flex:none;color:var(--muted);transition:transform .15s}
+.filters-box.collapsed .fb-chev{transform:rotate(-90deg)}
+.filters-box.collapsed .filters-body{display:none}
+.filters-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px 24px;padding:4px 18px 16px;border-top:1px solid var(--line);padding-top:14px}
+.filters-body label.f{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:10px;font-weight:500;font-size:12px;margin:0}
+.filters-body label.f > span:first-child .sub{display:block;font-size:11px}
+.filters-body select,.filters-body .dd-btn{width:100%;min-width:0;height:34px}
+.ctl-row{display:flex;gap:6px;min-width:0}.ctl-row select{flex:1}
+/* Filter 1, 2, …: full-width rows under the standard filters */
+.xf-rows{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;border-top:1px dashed var(--line);padding-top:12px}
+.xf{display:grid;grid-template-columns:96px minmax(140px,220px) minmax(160px,300px) 34px;gap:10px;align-items:center}
+.xf-label{font-size:12px;font-weight:500;color:var(--muted)}
+.xf select,.xf .dd-btn{width:100%;height:34px}
+.xf-del{height:34px;width:34px;padding:0;color:var(--muted)}
+.xf-del:hover{color:var(--warn);border-color:var(--warn)}
+.xf-add{align-self:flex-start;margin-left:106px;border-style:dashed;color:var(--accent);font-weight:600}
+@media (max-width:700px){.xf{grid-template-columns:1fr 1fr 34px}.xf-label{grid-column:1/-1}.xf-add{margin-left:0}}
+/* One dropdown arrow everywhere, always at the right edge */
+label.f select,.filters select,.filters-body select,.xf select,.dd-btn{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' fill='none' stroke='%238a93a6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:12px;padding-right:30px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
 select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 select:focus,input:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:0;border-color:var(--accent)}
@@ -60,10 +155,13 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:60
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04);transition:transform .12s,border-color .12s}
-.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);opacity:.7}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
 .kpi:nth-child(5n+2)::before{background:var(--b-dev)} .kpi:nth-child(5n+3)::before{background:var(--b-ref)} .kpi:nth-child(5n+4)::before{background:var(--b-test)} .kpi:nth-child(5n)::before{background:var(--b-done)}
 .kpi[data-drill]:hover{transform:translateY(-1px)}
-.kpi .v{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi{display:flex;flex-direction:column;gap:2px}
+.kpi .v{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.kpi .l{order:-1;font-size:12px;font-weight:500;color:var(--muted)}
+.kpi[data-drill]::after{content:"Click to view tickets";font-size:11px;color:var(--muted);margin-top:2px}
 .kpi .l{font-size:12px;color:var(--muted)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media (max-width:900px){.grid2{grid-template-columns:1fr}header,main{padding-left:16px;padding-right:16px}
@@ -72,7 +170,8 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:60
   .brand{padding:0 8px 0 0}.brand h1,.side-label,.side-foot{display:none}
   #tabs{flex-direction:row}
   #tabs button,body.side-mini #tabs button{font-size:13px;padding:8px 10px}
-  header{position:static}.drawer{left:0}}
+  header{position:static;flex-wrap:wrap}.head-actions{flex-wrap:wrap}.drawer{left:0}}
+@media (min-width:901px) and (max-width:1180px){#fullBtn{font-size:0;padding:6px 10px}#fullBtn::before{content:"⟲";font-size:15px}}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-bottom:10px}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .barrow{display:grid;grid-template-columns:minmax(110px,190px) 1fr 70px;gap:10px;align-items:center;margin:6px 0}
@@ -90,7 +189,8 @@ tr.total td{font-weight:650;border-top:2px solid var(--line)}
 .pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;color:#fff;font-weight:600}
 a{color:var(--accent)}
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
-.person h3{margin:0 0 4px;font-size:14px;display:flex;justify-content:space-between}
+.person h3{margin:0 0 4px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.who-name{display:flex;align-items:center;gap:10px}
 .person ul{list-style:none;padding:0;margin:8px 0 0}
 .person li{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px dashed var(--line);font-size:13px}
 .person li .s{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -206,11 +306,12 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
 [contenteditable="true"]:hover{outline:1px dashed var(--line);cursor:text}
 [contenteditable="true"]:focus{outline:2px solid var(--accent)}
 </style>
+<script>try { const t = localStorage.getItem("ji.theme") || "light"; if(t !== "auto") document.documentElement.dataset.theme = t; } catch(e) { document.documentElement.dataset.theme = "light"; }</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js" defer></script>
 </head>
 <body>
 <aside id="side">
-  <div class="brand"><div class="logo">JI</div><div><h1>Jira Insights</h1><span id="demoBadge" class="badge hidden">DEMO DATA</span></div></div>
+  <div class="brand"><img class="brand-logo" alt="Impetus" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJgAAAAeCAIAAABfSUCzAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAARGVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAADoAEAAwAAAAEAAQAAoAIABAAAAAEAAACYoAMABAAAAAEAAAAeAAAAANf5S+UAAAHLaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+CiAgIDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+CiAgICAgIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAgICAgICAgICAgIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj4KICAgICAgICAgPGV4aWY6Q29sb3JTcGFjZT4xPC9leGlmOkNvbG9yU3BhY2U+CiAgICAgICAgIDxleGlmOlBpeGVsWERpbWVuc2lvbj4yMDA8L2V4aWY6UGl4ZWxYRGltZW5zaW9uPgogICAgICAgICA8ZXhpZjpQaXhlbFlEaW1lbnNpb24+MjAwPC9leGlmOlBpeGVsWURpbWVuc2lvbj4KICAgICAgPC9yZGY6RGVzY3JpcHRpb24+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiUWbv0AABAmSURBVGgF7dp5qJbVFgbwq55m61rZXKRZWkGT1S0twpDArLQBArVBm6kEbSDSokGlogGihIiEHIpKCm0eNIqC6DYPNlGmRWWDzaOm3t/7Pbl9OXpO54t7LwTuP/ZZ79prPetZaw/v8J1OK1as+Mfa9v+tQGreqVMnYckRCoX6aJTLly+n7NKlC6Fz587Fsi6sWVu3WCv/typgGrTMXJnFVuBGNWb0v/32GzkGZpEQfSuXXLasUbtW+b+owE8//bR48eJff/11nXXW+WejEcpUlYjVTK5Y8cILLyxYsODHH39saWnZeOONd91115133plczFoJ1UCWCeGUU07ZYIMNli1btvvuu48dOzamQC2fjz/+ePz48V27djXq8qSTTurXr1+W1dKlSxFibMjCWbJkybrrrhvfV155ZfLkyRDWX3/9X3755aKLLurduzevYLK//vrr33//fcY0WP7+++9kAmPsee2www59+/bda6+9XOKZg0VENnBoHnrooUcffZQ9459//nm99dajt5ZjEFiYhrp169anT5+RI0eiF57nnHMOwGQRL+5JhyMbRacRRQsU4bjjjjvssMMIQtxyyy1yBMJyzJgxeCbxNfbmZuLEiaF9+OGHX3jhhczgCCRxaC4lMmvWrBkzZgBUH1TlYlIYbLTRRoceeujRRx+9/fbbK3iqnUDkyjnV+eGHHz799FO4tBtuuCHeyTDBvv32248++iiW9FOmTEEanEhhkMwZ0wAJ3ZtuugkmcrhqhGDq2WvffPPN/Pnzw8kKSB1Fz6mippK///77zeKwYcOOP/74rBJQwfnkk0+EEA4x4NwNWfhyTv4QAsse/zfeeMNoKmjIGuIoOtoc8WFWFaWlJUqXwI3SZIj85ZdfkpP1Z5999t5778Xd7iE028RNRI6ff/653fLWW29JBDHN/CkyqsItWrTogQceePDBBwcPHnzaaafZ0gjLjhmbziGa8Nw0LA3oKZNbTEuqVveHH3545513mjM2QSi9pcSe+7333msfI2EojR4g3oFFTvWhuSQLzUxos5vqU3Jhb5FZ+1dddRUOzCjFVbgvvvjCqLnR25F682eIoAciOibwyZQAQRnKeq/y79wZpsJRJmv2NHpNgqkpBAZ69hlClcalRnAJXyM31WAKhx6vK6+8UsXsP3ElYqp23HFHo2AZbLnllkKzf+SRR8x3oqCHdjXT4WFY4+MyRAsbFGNDz0AdN9tsM7W75557DjnkEEclJWM9OKAKCsryuf322+nJaEEgFExQyHFRWfuPoL4EZhgT4GTCouGIxlNPPeWkPeGEEwSid847dUeMGDFnzhxzL67kkxg0m5iZoJkkM6dAW2+99bnnnksZkptuuul3333HUlCUMpEWFpnGUWytiAIBT4RRwk06IY8VGozT2KQUJc0OCinR7Nmz33nnHZxxk+yECRMOOOCA8Jw3b57cn3zySXHF0p999tkBx5OA0h83T1hpIAiG9SsZVluTnj8lrmZRApQ33HDDzTffnBWRKlDG0SmvmszoafDTFAJm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"><div class="brand-name"><h1>Jira Insights</h1><span id="demoBadge" class="badge hidden">DEMO DATA</span></div></div>
   <div class="side-label">Menu</div>
 <nav id="tabs">
   <button data-tab="overview" class="active" title="Overview">Overview</button>
@@ -231,32 +332,39 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <div class="page-title" id="pageTitle">Overview</div>
     <div class="sub" id="metaLine">Not connected yet</div>
   </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="primary" id="refreshBtn" title="Quick: pulls only tickets that changed since the last refresh">Refresh from Jira</button>
+  <div class="head-actions">
+    <button class="primary" id="refreshBtn" title="Quick: pulls only tickets that changed since the last refresh">↻ Refresh</button>
     <button id="fullBtn" title="Reload every ticket from Jira (use after changing what to pull, or once a week)">Full reload</button>
-    <a class="btn" id="xlsxBtn" href="/download/jira_data.xlsx">Download Excel (Power BI)</a>
-    <button type="button" data-cap="png" data-target="@tab" title="Download the whole current tab as a PNG">📷 Capture view</button>
+    <div class="dd"><button type="button" id="exportBtn" class="dd-btn">↓ Export</button>
+      <div id="exportMenu" class="dd-menu right hidden">
+        <a class="mi" id="xlsxBtn" href="/download/jira_data.xlsx">Excel for Power BI</a>
+        <button type="button" class="mi" data-cap="png" data-target="@tab" title="Download the whole current tab as a PNG">Capture this page (PNG)</button>
+      </div></div>
+    <div class="user" id="userBox"></div>
   </div>
 </header>
 <main>
+  <p class="page-desc" id="pageDesc"></p>
   <div id="status" class="msg hidden"></div>
 
-  <div id="filters" class="filters">
-    <div class="dd"><label class="f">Projects<button id="projBtn" type="button">All projects ▾</button></label>
+  <div id="filters" class="filters-box">
+    <button type="button" class="fb-head" id="filtersHead" aria-expanded="true">
+      <span class="fb-title">Filters</span><span class="fb-sum" id="filtersSum"></span><span class="fb-chev">▾</span></button>
+    <div class="filters-body" id="filtersBody">
+    <div class="dd"><label class="f">Projects<button id="projBtn" class="dd-btn" type="button">All projects</button></label>
       <div id="projMenu" class="dd-menu hidden"></div></div>
-    <label class="f">Service field<span style="display:flex;gap:4px"><select id="fSvcField" title="Where the Services list comes from"></select><button type="button" id="svcDefaultBtn" class="hidden" title="Also use this in Settings, the Excel file and Power BI">Make default</button></span></label>
-    <div class="dd"><label class="f"><span>Services <span class="sub" id="svcSource"></span></span><button id="svcBtn" type="button">All services ▾</button></label>
+    <label class="f">Service field<span class="ctl-row"><select id="fSvcField" title="Where the Services list comes from"></select><button type="button" id="svcDefaultBtn" class="hidden" title="Also use this in Settings, the Excel file and Power BI">Make default</button></span></label>
+    <div class="dd"><label class="f"><span>Services <span class="sub" id="svcSource"></span></span><button id="svcBtn" class="dd-btn" type="button">All services</button></label>
       <div id="svcMenu" class="dd-menu hidden"></div></div>
-    <label class="f">And filter by<select id="fExtraField" title="Add a second filter next to Services, e.g. a label, parent or fix version"></select></label>
-    <div class="dd hidden" id="extraDd"><label class="f"><span id="extraName">Values</span><button id="extraBtn" type="button">All ▾</button></label>
-      <div id="extraMenu" class="dd-menu hidden"></div></div>
     <label class="f">Sprint<select id="fSprint"></select></label>
-    <div class="dd"><label class="f">Ticket type<button id="typeBtn" type="button">All ticket types ▾</button></label>
+    <div class="dd"><label class="f">Ticket type<button id="typeBtn" class="dd-btn" type="button">All ticket types</button></label>
       <div id="typeMenu" class="dd-menu hidden"></div></div>
-    <div class="dd"><label class="f">Assignee<button id="assigneeBtn" type="button">All people ▾</button></label>
+    <div class="dd"><label class="f">Assignee<button id="assigneeBtn" class="dd-btn" type="button">All people</button></label>
       <div id="assigneeMenu" class="dd-menu hidden"></div></div>
     <label class="f">Measure<select id="fMetric"><option value="count">Ticket count</option><option value="sp">Story points</option></select></label>
     <label class="f">Show by<select id="fGroup"><option value="bucket">Bucket</option><option value="status">Jira status</option></select></label>
+    <div class="xf-rows" id="xfRows"></div>
+    </div>
   </div>
 
   <p class="hint" id="drillHint" style="margin:-8px 0 14px">Tip: click any number, bar or total to list its tickets at the bottom of the screen.</p>
@@ -477,6 +585,16 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
 
   <section id="tab-settings" class="hidden">
     <div class="panel">
+      <h2>Appearance</h2>
+      <p class="hint" style="margin:-6px 0 14px">Choose how Jira Insights looks on this device.</p>
+      <div class="theme-pick" id="themePick">
+        <button type="button" data-theme-set="light"><i class="tp light"></i><span><b>☀︎ Light</b><span class="sub">Bright and clear</span></span></button>
+        <button type="button" data-theme-set="dark"><i class="tp dark"></i><span><b>◐ Dark</b><span class="sub">Low-light friendly</span></span></button>
+        <button type="button" data-theme-set="auto"><i class="tp auto"></i><span><b>◑ Match my computer</b><span class="sub">Follows your Mac / Windows setting</span></span></button>
+        <span class="hint">Saved automatically for this device</span>
+      </div>
+    </div>
+    <div class="panel">
       <h2>1. Connect to Jira</h2>
       <div class="form">
         <label class="f">Jira URL<input id="sUrl" placeholder="https://yourcompany.atlassian.net"></label>
@@ -550,7 +668,38 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
     <p class="hint">Enter your Jira URL and API token in Settings, then Refresh. Or try it with demo data first.</p>
     <button class="primary" onclick="showTab('settings')">Open settings</button> <button onclick="refresh(true)">Load demo data</button>
   </div>
+  <p class="foot-note" id="footNote"></p>
 </main>
+</div>
+
+<div id="login" class="login hidden">
+  <div class="login-art">
+    <div class="login-brand"><img class="brand-logo inv" alt="Impetus" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJgAAAAeCAIAAABfSUCzAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAARGVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAADoAEAAwAAAAEAAQAAoAIABAAAAAEAAACYoAMABAAAAAEAAAAeAAAAANf5S+UAAAHLaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+CiAgIDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+CiAgICAgIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAgICAgICAgICAgIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj4KICAgICAgICAgPGV4aWY6Q29sb3JTcGFjZT4xPC9leGlmOkNvbG9yU3BhY2U+CiAgICAgICAgIDxleGlmOlBpeGVsWERpbWVuc2lvbj4yMDA8L2V4aWY6UGl4ZWxYRGltZW5zaW9uPgogICAgICAgICA8ZXhpZjpQaXhlbFlEaW1lbnNpb24+MjAwPC9leGlmOlBpeGVsWURpbWVuc2lvbj4KICAgICAgPC9yZGY6RGVzY3JpcHRpb24+CiAgIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+CiUWbv0AABAmSURBVGgF7dp5qJbVFgbwq55m61rZXKRZWkGT1S0twpDArLQBArVBm6kEbSDSokGlogGihIiEHIpKCm0eNIqC6DYPNlGmRWWDzaOm3t/7Pbl9OXpO54t7LwTuP/ZZ79prPetZaw/v8J1OK1as+Mfa9v+tQGreqVMnYckRCoX6aJTLly+n7NKlC6Fz587Fsi6sWVu3WCv/typgGrTMXJnFVuBGNWb0v/32GzkGZpEQfSuXXLasUbtW+b+owE8//bR48eJff/11nXXW+WejEcpUlYjVTK5Y8cILLyxYsODHH39saWnZeOONd91115133plczFoJ1UCWCeGUU07ZYIMNli1btvvuu48dOzamQC2fjz/+ePz48V27djXq8qSTTurXr1+W1dKlSxFibMjCWbJkybrrrhvfV155ZfLkyRDWX3/9X3755aKLLurduzevYLK//vrr33//fcY0WP7+++9kAmPsee2www59+/bda6+9XOKZg0VENnBoHnrooUcffZQ9459//nm99dajt5ZjEFiYhrp169anT5+RI0eiF57nnHMOwGQRL+5JhyMbRacRRQsU4bjjjjvssMMIQtxyyy1yBMJyzJgxeCbxNfbmZuLEiaF9+OGHX3jhhczgCCRxaC4lMmvWrBkzZgBUH1TlYlIYbLTRRoceeujRRx+9/fbbK3iqnUDkyjnV+eGHHz799FO4tBtuuCHeyTDBvv32248++iiW9FOmTEEanEhhkMwZ0wAJ3ZtuugkmcrhqhGDq2WvffPPN/Pnzw8kKSB1Fz6mippK///77zeKwYcOOP/74rBJQwfnkk0+EEA4x4NwNWfhyTv4QAsse/zfeeMNoKmjIGuIoOtoc8WFWFaWlJUqXwI3SZIj85ZdfkpP1Z5999t5778Xd7iE028RNRI6ff/653fLWW29JBDHN/CkyqsItWrTogQceePDBBwcPHnzaaafZ0gjLjhmbziGa8Nw0LA3oKZNbTEuqVveHH3545513mjM2QSi9pcSe+7333msfI2EojR4g3oFFTvWhuSQLzUxos5vqU3Jhb5FZ+1dddRUOzCjFVbgvvvjCqLnR25F682eIoAciOibwyZQAQRnKeq/y79wZpsJRJmv2NHpNgqkpBAZ69hlClcalRnAJXyM31WAKhx6vK6+8UsXsP3ElYqp23HFHo2AZbLnllkKzf+SRR8x3oqCHdjXT4WFY4+MyRAsbFGNDz0AdN9tsM7W75557DjnkEEclJWM9OKAKCsryuf322+nJaEEgFExQyHFRWfuPoL4EZhgT4GTCouGIxlNPPeWkPeGEEwSid847dUeMGDFnzhxzL67kkxg0m5iZoJkkM6dAW2+99bnnnksZkptuuul3333HUlCUMpEWFpnGUWytiAIBT4RRwk06IY8VGozT2KQUJc0OCinR7Nmz33nnHZxxk+yECRMOOOCA8Jw3b57cn3zySXHF0p999tkBx5OA0h83T1hpIAiG9SsZVluTnj8lrmZRApQ33HDDzTffnBWRKlDG0SmvmszoafDTFAJm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"><span>Jira Insights</span></div>
+    <span class="login-tag">WORKSPACE ANALYTICS</span>
+    <h1 class="login-hero">See the work.<br>Move it forward.</h1>
+    <p class="login-lead">A clear view of delivery, workload and progress across every Jira project.</p>
+    <div class="login-stats" id="loginStats"></div>
+    <div class="login-glance"><h4>Delivery at a glance</h4><div id="loginGlance"></div></div>
+    <p class="login-foot">Built for teams that ship together</p>
+  </div>
+  <div class="login-side">
+    <form class="login-form" id="loginForm" autocomplete="on">
+      <h2>Welcome back</h2>
+      <span class="sub">Sign in with your Jira account to continue.</span>
+      <label class="f">Jira site URL<input id="lUrl" name="url" placeholder="your-company.atlassian.net" autocomplete="url" required></label>
+      <label class="f">Work email<input id="lEmail" name="email" type="email" placeholder="name@company.com" autocomplete="username"></label>
+      <label class="f">Password or API token<input id="lToken" name="password" type="password" placeholder="Paste your Jira API token" autocomplete="current-password" required></label>
+      <div class="login-row"><label><input type="checkbox" id="lKeep" checked> Keep me signed in</label><a href="#" id="lHelpLink">Need help connecting?</a></div>
+      <div class="login-help hidden" id="lHelp"></div>
+      <p class="login-err hidden" id="lErr"></p>
+      <button type="submit" class="primary wide" id="lSubmit">Continue with Jira →</button>
+      <div class="login-or">OR CONTINUE WITH</div>
+      <button type="button" class="wide" id="lSso">Continue with SSO</button>
+      <button type="button" class="wide hidden" id="lDemo" style="margin-top:8px">Explore with demo data</button>
+      <p class="login-note">Your API token is stored only on this computer.</p>
+      <p class="login-fine">By continuing, you agree to your organization's access policy.</p>
+    </form>
+  </div>
 </div>
 
 <div id="drawer" class="drawer hidden">
@@ -599,6 +748,11 @@ async function load(){
   const r = await fetch("/api/data");
   DATA = r.ok ? await r.json() : null;
   TIMELINES = null; ROLECTX = null;
+  // Signed out (no Jira token on this computer) → the sign-in screen, unless they chose to look at demo data.
+  if(!CONFIG.has_token && !demoMode()) return showLogin();
+  $("login").classList.add("hidden");
+  renderUser();
+  $("footNote").textContent = DATA ? `Data source: Jira${DATA.meta.demo ? " (demo data)" : ""} · Last synchronized ${DATA.meta.updated_at || DATA.meta.refreshed_at}` : "";
   RTM = await api("/api/rtm");
   fillSettings();
   if(!DATA){ $("empty").classList.toggle("hidden", currentTab === "settings"); $("filters").classList.add("hidden");
@@ -609,6 +763,77 @@ async function load(){
   buildServiceFieldPicker();
   applyServiceField(currentServiceField(), true);
 }
+
+// ---------- sign in / sign out ----------
+const demoMode = () => { try { return sessionStorage.getItem("ji.demo") === "1" && (!DATA || !!DATA.meta.demo); } catch(e) { return false; } };
+const initials = n => (n || "?").replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
+function renderUser(){
+  const name = CONFIG.has_token ? CONFIG.display_name || CONFIG.email || "Jira user" : "Demo visitor";
+  $("userBox").innerHTML = `<i class="avatar">${esc(initials(name))}</i><span><b>${esc(name)}</b>` +
+    (CONFIG.has_token ? `<a href="#" id="logoutLink" title="Remove your Jira token from this computer">↪ Log out</a>` : `<a href="#" id="signinLink">Sign in with Jira</a>`) + `</span>`;
+  if($("logoutLink")) $("logoutLink").onclick = async e => { e.preventDefault();
+    if(!confirm("Log out of Jira Insights?\n\nYour Jira API token is removed from this computer. Your settings and the data already pulled stay, so signing in again brings you straight back.")) return;
+    await api("/api/logout", {}); try { sessionStorage.removeItem("ji.demo"); } catch(e) {} location.reload(); };
+  if($("signinLink")) $("signinLink").onclick = e => { e.preventDefault(); try { sessionStorage.removeItem("ji.demo"); } catch(e) {} showLogin(); };
+}
+function showLogin(){
+  if(drillState) closeDrill();
+  $("lUrl").value = CONFIG.jira_url || ""; $("lEmail").value = CONFIG.email || ""; $("lToken").value = "";
+  $("lKeep").checked = CONFIG.keep_signed_in !== false;
+  $("lErr").classList.add("hidden"); $("lHelp").classList.add("hidden");
+  $("lDemo").classList.toggle("hidden", !!DATA && !DATA.meta.demo);  // demo data never replaces real data from here
+  // Left side: the numbers from the last pull on this computer (if any).
+  const issues = DATA ? DATA.issues.filter(i => !i.Hidden) : [];
+  $("loginStats").innerHTML = DATA ? [[issues.length, "Tickets tracked"], [uniq(issues.map(i => i.Project)).length, "Projects connected"],
+    [uniq(issues.map(i => i.Service)).length, "Services"]].map(([v, l]) => `<div><b>${fmt(v)}</b><span>${l}</span></div>`).join("") : "";
+  const buckets = DATA ? DATA.buckets.filter(b => b !== "Other") : ["Product", "Development", "QA", "Done"];
+  const counts = buckets.map(b => DATA ? issues.filter(i => i.Bucket === b).length : [70, 55, 42, 30][buckets.indexOf(b)]), max = Math.max(1, ...counts);
+  const fallback = ["#7c5cd6", "#3f5bd8", "#d98a2b", "#3d9a5f"];
+  $("loginGlance").innerHTML = buckets.map((b, k) => `<div class="g">${esc(b)}<i style="width:${Math.max(4, 100 * counts[k] / max)}%;background:${DATA ? bucketColor(b) : fallback[k % 4]}"></i></div>`).join("");
+  $("login").classList.remove("hidden");
+  setTimeout(() => ($("lUrl").value ? ($("lEmail").value ? $("lToken") : $("lEmail")) : $("lUrl")).focus(), 50);
+}
+const LOGIN_HELP = {
+  token: `<p><b>Jira Cloud</b> (…atlassian.net): use your work email and an <b>API token</b>, not your password. Create one at
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">id.atlassian.com → Security → API tokens</a>, then paste it here.</p>
+    <p><b>Jira Server / Data Center</b>: leave the email empty and paste a Personal Access Token (your Jira profile → Personal Access Tokens).</p>`,
+  sso: `<p>Your company signs in to Atlassian with <b>SSO</b>? Jira still needs an <b>API token</b> for apps like this one:</p>
+    <p>1. Sign in to Atlassian through SSO in your browser as usual.<br>2. Open <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">id.atlassian.com → Security → API tokens</a> and create a token.<br>3. Paste it above with your work email and click <b>Continue with Jira</b>.</p>`,
+};
+function toggleLoginHelp(kind){ const h = $("lHelp"), same = !h.classList.contains("hidden") && h.dataset.kind === kind;
+  h.dataset.kind = kind; h.innerHTML = LOGIN_HELP[kind]; h.classList.toggle("hidden", same); }
+$("lHelpLink").onclick = e => { e.preventDefault(); toggleLoginHelp("token"); };
+$("lSso").onclick = () => toggleLoginHelp("sso");
+$("lDemo").onclick = async () => { try { sessionStorage.setItem("ji.demo", "1"); } catch(e) {}
+  $("login").classList.add("hidden"); if(DATA) await load(); else refresh(true); };
+$("loginForm").onsubmit = async e => {
+  e.preventDefault();
+  const btn = $("lSubmit"), err = $("lErr");
+  btn.disabled = true; btn.textContent = "Connecting to Jira…"; err.classList.add("hidden");
+  try {
+    const r = await api("/api/login", {jira_url: $("lUrl").value.trim(), email: $("lEmail").value.trim(), token: $("lToken").value, keep: $("lKeep").checked});
+    if(!r.ok){ err.textContent = r.error; err.classList.remove("hidden"); return; }
+    $("lToken").value = ""; try { sessionStorage.removeItem("ji.demo"); } catch(e) {}
+    await load();
+    if(!r.has_projects){ showTab("settings"); toast(`Signed in as ${r.user}. Now tick the projects to pull and click “Save & refresh data”.`); }
+    else { showTab(currentTab); toast(`Signed in as ${r.user}.`); }
+  } catch(ex) { err.textContent = "Couldn't reach the app: " + ex.message; err.classList.remove("hidden"); }
+  finally { btn.disabled = false; btn.textContent = "Continue with Jira →"; }
+};
+
+// ---------- Appearance (light / dark / match the computer), remembered on this device ----------
+function applyTheme(t){
+  if(t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  document.querySelectorAll("[data-theme-set]").forEach(b => b.classList.toggle("on", b.dataset.themeSet === t));
+}
+const savedTheme = () => { try { return localStorage.getItem("ji.theme") || "light"; } catch(e) { return "light"; } };
+document.querySelectorAll("[data-theme-set]").forEach(b => b.onclick = () => {
+  try { localStorage.setItem("ji.theme", b.dataset.themeSet); } catch(e) {} applyTheme(b.dataset.themeSet); });
+applyTheme(savedTheme());
+
+// Header → Export menu.
+$("exportBtn").onclick = e => { e.stopPropagation(); $("exportMenu").classList.toggle("hidden"); };
+document.addEventListener("click", e => { if(!e.target.closest("#exportBtn")) $("exportMenu").classList.add("hidden"); });
 
 // ---------- "Service field": pick where Services come from, right on the dashboard ----------
 // Tickets carry their components, labels, parent and the custom fields the projects use (DATA.meta.service_fields),
@@ -671,50 +896,70 @@ function hideTabs(){ ["overview","who","team","timesheet","report","plan","rtm",
 const MULTI = {
   Project: {btn:"projBtn", menu:"projMenu", plural:"projects"},
   Service: {btn:"svcBtn", menu:"svcMenu", plural:"services"},
-  Extra: {btn:"extraBtn", menu:"extraMenu", plural:"values"},
   IssueType: {btn:"typeBtn", menu:"typeMenu", plural:"ticket types"},
   Assignee: {btn:"assigneeBtn", menu:"assigneeMenu", plural:"people"},
 };
 const hidden = Object.fromEntries(Object.keys(MULTI).map(k => [k, new Set()]));
-try { const saved = JSON.parse(localStorage.getItem("ji.hidden") || "{}");
-  Object.keys(hidden).forEach(k => (saved[k]||[]).forEach(v => hidden[k].add(v))); } catch(e) {}
+let SAVED_HIDDEN = {};
+try { SAVED_HIDDEN = JSON.parse(localStorage.getItem("ji.hidden") || "{}");
+  Object.keys(hidden).forEach(k => (SAVED_HIDDEN[k]||[]).forEach(v => hidden[k].add(v))); } catch(e) {}
 function saveHidden(){ try { localStorage.setItem("ji.hidden", JSON.stringify(Object.fromEntries(Object.entries(hidden).map(([k, v]) => [k, [...v]])))); } catch(e) {} }
 
 // The value(s) a ticket has for a filter field (tickets can carry several labels, components or fix versions).
-const valuesOf = (i, field) => field === "Extra" ? extraValuesOf(i) : [i[field]];
+const valuesOf = (i, field) => xIndex(field) >= 0 ? extraValuesOf(i, XF[xIndex(field)]) : [i[field]];
 
-// "And filter by": a second filter next to Services — label, parent / epic, fix version, component or a custom field.
+// Filter 1, Filter 2, …: as many extra filters as the user adds — label, parent / epic, fix version, component, priority,
+// reporter or a custom field. Each is stored as its field; its unticked values live in hidden["X0"], hidden["X1"], …
 function extraOptions(){
-  const opts = [["", "Nothing else"], ["Labels", "Labels", "labels"], ["Parent", "Parent / Epic", "parents"], ["FixVersions", "Fix version", "fix versions"],
+  const opts = [["Labels", "Labels", "labels"], ["Parent", "Parent / Epic", "parents"], ["FixVersions", "Fix version", "fix versions"],
     ["Components", "Components", "components"], ["Priority", "Priority", "priorities"], ["Reporter", "Reporter", "reporters"]];
   (DATA.meta.service_fields || []).slice().sort((a, b) => a.localeCompare(b)).forEach(f => opts.push(["field:" + f, `Field: ${f}`, "values"]));
   return opts;
 }
-let extraField = ""; try { extraField = localStorage.getItem("ji.extraField") || ""; } catch(e) {}
-function extraValuesOf(i){
-  const f = extraField;
+let XF = [];
+try { XF = JSON.parse(localStorage.getItem("ji.xfilters") || "null");
+  if(!Array.isArray(XF)){ const old = localStorage.getItem("ji.extraField");  // the earlier single "And filter by"
+    XF = old ? [old] : []; if(old) SAVED_HIDDEN.X0 = SAVED_HIDDEN.Extra || []; } } catch(e) { XF = []; }
+const xKey = k => "X" + k;
+const xKeys = () => XF.map((_, k) => xKey(k));
+const xIndex = field => /^X\d+$/.test(field) ? +field.slice(1) : -1;
+function saveXF(){ try { localStorage.setItem("ji.xfilters", JSON.stringify(XF)); } catch(e) {} }
+function extraValuesOf(i, f){
   if(!f) return [];
   if(["Labels", "Components", "FixVersions"].includes(f)) return i[f] ? i[f].split(", ") : [`(No ${f === "FixVersions" ? "fix version" : f.slice(0, -1).toLowerCase()})`];
   if(f === "Parent") return [i.Parent || "(No parent)"];
   if(f.startsWith("field:")) return [(i.Fields || {})[f.slice(6)] || "(Not set)"];
   return [i[f] || "(None)"];
 }
-const extraOk = i => !extraField || !hidden.Extra.size || extraValuesOf(i).some(v => !hidden.Extra.has(v));
-function buildExtraPicker(){
+// Passes the first `upTo` extra filters (all of them by default).
+const extraOk = (i, upTo = XF.length) => XF.slice(0, upTo).every((f, k) => { const h = hidden[xKey(k)];
+  return !h || !h.size || extraValuesOf(i, f).some(v => !h.has(v)); });
+function registerXF(){
+  Object.keys(MULTI).filter(k => xIndex(k) >= 0).forEach(k => delete MULTI[k]);
   const opts = extraOptions();
-  if(!opts.some(([k]) => k === extraField)) extraField = "";
-  $("fExtraField").innerHTML = opts.map(([k, label]) => `<option value="${esc(k)}">${esc(label)}</option>`).join("");
-  $("fExtraField").value = extraField;
-  const o = opts.find(([k]) => k === extraField);
-  MULTI.Extra.plural = o[2] || "values";
-  $("extraName").textContent = extraField ? o[1] : "Values";
-  $("extraDd").classList.toggle("hidden", !extraField);
+  XF = XF.filter(f => opts.some(([k]) => k === f));
+  XF.forEach((f, k) => { const o = opts.find(([key]) => key === f);
+    MULTI[xKey(k)] = {btn: "xfBtn" + k, menu: "xfMenu" + k, plural: o[2]};
+    if(!hidden[xKey(k)]) hidden[xKey(k)] = new Set(SAVED_HIDDEN[xKey(k)] || []); });
+  Object.keys(hidden).filter(k => xIndex(k) >= XF.length).forEach(k => delete hidden[k]);
+  $("xfRows").innerHTML = XF.map((f, k) => `<div class="xf"><span class="xf-label">Filter ${k + 1}</span>
+      <select data-xf="${k}" title="Which field this filter uses">${opts.map(([key, label]) => `<option value="${esc(key)}"${key === f ? " selected" : ""}>${esc(label)}</option>`).join("")}</select>
+      <div class="dd"><button type="button" class="dd-btn" id="xfBtn${k}"></button><div id="xfMenu${k}" class="dd-menu hidden"></div></div>
+      <button type="button" class="xf-del" data-xf-del="${k}" title="Remove this filter">✕</button></div>`).join("") +
+    `<button type="button" class="xf-add" id="xfAdd">+ Add filter</button>`;
+  XF.forEach((_, k) => bindMultiBtn(MULTI[xKey(k)]));
+  $("xfRows").querySelectorAll("[data-xf]").forEach(sel => sel.onchange = () => {
+    const k = +sel.dataset.xf; XF[k] = sel.value; hidden[xKey(k)] = new Set(); saveXF(); saveHidden(); buildFilters(); render(); });
+  $("xfRows").querySelectorAll("[data-xf-del]").forEach(b => b.onclick = () => {
+    const k = +b.dataset.xfDel; XF.splice(k, 1);
+    for(let j = k; j < XF.length; j++) hidden[xKey(j)] = hidden[xKey(j + 1)];  // later filters move up one
+    delete hidden[xKey(XF.length)]; saveXF(); saveHidden(); buildFilters(); render(); });
+  $("xfAdd").onclick = () => { const next = opts.find(([key]) => !XF.includes(key)) || opts[0];
+    XF.push(next[0]); hidden[xKey(XF.length - 1)] = new Set(); saveXF(); saveHidden(); buildFilters(); render();
+    setTimeout(() => $("xfRows").querySelector(`[data-xf="${XF.length - 1}"]`)?.focus(), 0); };
 }
-$("fExtraField").onchange = () => {
-  extraField = $("fExtraField").value; hidden.Extra.clear(); saveHidden();
-  try { localStorage.setItem("ji.extraField", extraField); } catch(e) {}
-  buildExtraPicker(); buildFilters(); render();
-};
+// Static filters first, then Filter 1…n (each narrows the ones after it), then ticket type and assignee.
+const multiOrder = () => ["Project", "Service", ...xKeys(), "IssueType", "Assignee"];
 const boardIssues = () => DATA.issues.filter(i => !i.Hidden);  // statuses hidden in Board setup never show
 
 function multiValues(field){
@@ -722,7 +967,7 @@ function multiValues(field){
   let pool = boardIssues();
   if(field !== "Project") pool = pool.filter(i => !hidden.Project.has(i.Project));
   if(field !== "Project" && field !== "Service") pool = pool.filter(i => !hidden.Service.has(i.Service));
-  if(!["Project", "Service", "Extra"].includes(field)) pool = pool.filter(extraOk);
+  if(field !== "Project" && field !== "Service") { const k = xIndex(field); pool = pool.filter(i => extraOk(i, k >= 0 ? k : XF.length)); }
   return uniq(pool.flatMap(i => valuesOf(i, field)));
 }
 function buildMulti(field){
@@ -742,20 +987,23 @@ function buildMulti(field){
     search.oninput = apply; apply(); }
   const changed = () => { saveHidden();
     // Picking projects (or services) narrows every other list to what's in them.
-    const order = Object.keys(MULTI), after = order.slice(order.indexOf(field) + 1);
-    if(["Project", "Service", "Extra"].includes(field)) { after.forEach(f => buildMulti(f)); buildSprintOptions(); }
+    const order = multiOrder(), after = order.slice(order.indexOf(field) + 1);
+    if(field === "Project" || field === "Service" || xIndex(field) >= 0) { after.forEach(f => buildMulti(f)); buildSprintOptions(); }
     updateMultiLabel(field); render(); };
   menu.querySelectorAll("input[type=checkbox]").forEach(cb => cb.onchange = () => { cb.checked ? h.delete(cb.value) : h.add(cb.value); changed(); });
+  // For Filter 1, 2, … "only" / "None" cover every value of that field, not just the ones visible now,
+  // so the choice still holds when an earlier filter is changed or removed.
+  const universe = xIndex(field) >= 0 ? uniq(boardIssues().flatMap(i => valuesOf(i, field))) : values;
   menu.querySelectorAll("[data-only]").forEach(b => b.onclick = e => { e.preventDefault();
-    values.forEach(v => v === b.dataset.only ? h.delete(v) : h.add(v)); buildMulti(field); changed(); });
+    universe.forEach(v => v === b.dataset.only ? h.delete(v) : h.add(v)); buildMulti(field); changed(); });
   menu.querySelector("[data-act=all]").onclick = () => { values.forEach(v => h.delete(v)); buildMulti(field); changed(); };
-  menu.querySelector("[data-act=none]").onclick = () => { values.forEach(v => h.add(v)); buildMulti(field); changed(); };
+  menu.querySelector("[data-act=none]").onclick = () => { universe.forEach(v => h.add(v)); buildMulti(field); changed(); };
   updateMultiLabel(field);
 }
 function updateMultiLabel(field){
   const m = MULTI[field], values = multiValues(field), shown = values.filter(v => !hidden[field].has(v));
   $(m.btn).textContent = (shown.length === values.length ? `All ${m.plural}` : shown.length === 1 ? shown[0]
-    : shown.length === 0 ? `No ${m.plural}` : `${shown.length} of ${values.length} ${m.plural}`) + " ▾";
+    : shown.length === 0 ? `No ${m.plural}` : `${shown.length} of ${values.length} ${m.plural}`);
 }
 
 const fillSelect = (el, values, allLabel, extra="") => { const cur = el.value;
@@ -768,8 +1016,8 @@ function buildSprintOptions(){
   fillSelect($("fSprint"), sprints, "All sprints", hasActive?`<option value="__active">Active sprint(s)</option>`:"");
 }
 function buildFilters(){
-  buildExtraPicker();
-  Object.keys(MULTI).forEach(buildMulti);
+  registerXF();
+  multiOrder().forEach(buildMulti);
   buildSprintOptions();
   fillSelect($("fBucket"), DATA.buckets, "All buckets");
 }
@@ -784,6 +1032,7 @@ function filtered(ignoreAssignee){
 // ---------- rendering ----------
 function render(){
   if(!DATA) return;
+  updateFiltersSum();
   const issues = filtered();
   ({overview:renderOverview, who:renderWho, team:renderTeam, timesheet:renderTimesheet, report:renderReport, plan:renderPlan, rtm:renderRtm, tickets:renderTickets}[currentTab]||(()=>{}))(issues);
   renderDrill();
@@ -872,12 +1121,14 @@ function renderWho(issues){
   const names = [...by.keys()].sort((a,b)=>(a==="Unassigned")-(b==="Unassigned") || by.get(b).length-by.get(a).length);
   $("people").innerHTML = names.map(n=>{ const it = by.get(n).sort((a,b)=>order.indexOf(b.Bucket)-order.indexOf(a.Bucket));
     const sp = it.reduce((a,i)=>a+i.StoryPoints,0);
-    return `<div class="panel person"><h3><span>${esc(n)}</span><span class="sub">${dl(`${it.length} open · ${fmt(sp)} sp`, {Assignee:n, open:1}, `${n} · open`)}</span></h3>
+    return `<div class="panel person"><h3><span class="who-name"><i class="avatar" style="background:${avatarColor(n)}">${esc(initials(n))}</i>${esc(n)}</span><span class="sub">${dl(`${it.length} open · ${fmt(sp)} sp`, {Assignee:n, open:1}, `${n} · open`)}</span></h3>
       <div class="sub">${esc(uniq(it.map(i=>i.Service)).join(", "))}</div>
       <ul>${it.map(i=>`<li>${pill(i.Bucket)}<a href="${esc(i.URL)}" target="_blank" rel="noopener">${esc(i.Key)}</a><span class="s" title="${esc(i.Summary)}">${esc(i.Summary)}</span><span class="sub">${i.StoryPoints?fmt(i.StoryPoints)+"sp":""}</span></li>`).join("")}</ul></div>`;
   }).join("") || `<p class="hint">No open tickets for the current filters.</p>`;
 }
 
+function avatarColor(n){ let h = 0; for(const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return n === "Unassigned" ? "#98a2b3" : ["#3f5bd8", "#7c5cd6", "#3d9a5f", "#d98a2b", "#2f8fb3", "#c2508a"][h % 6]; }
 function peopleRows(issues){
   const keys = new Set(issues.map(i=>i.Key)), m = new Map();
   const r = n => { if(!m.has(n)) m.set(n,{name:n,active:0,byBucket:{},openSp:0,doneSp:0,done:0,hours:0,services:new Set()}); return m.get(n); };
@@ -1980,7 +2231,7 @@ function filterSummary(){
   const part = (field) => { const all = multiValues(field), shown = all.filter(v => !hidden[field].has(v));
     return shown.length === all.length ? `All ${MULTI[field].plural}` : shown.join(", ") || `No ${MULTI[field].plural}`; };
   const sel = id => $(id).value ? $(id).selectedOptions[0].textContent : "";
-  return [part("Project"), part("Service"), part("IssueType"), extraField ? `${$("extraName").textContent}: ${part("Extra")}` : "", part("Assignee"), sel("fSprint")].filter(Boolean).join(" · ");
+  return [part("Project"), part("Service"), part("IssueType"), ...XF.map((f, k) => `${(extraOptions().find(([key]) => key === f) || [, f])[1]}: ${part(xKey(k))}`), part("Assignee"), sel("fSprint")].filter(Boolean).join(" · ");
 }
 function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toast.timer); toast.timer = setTimeout(()=>t.classList.add("hidden"), 3500); }
 
@@ -2902,7 +3153,7 @@ function widgetScope(){
   const pick = field => { const all = multiValues(field), shown = all.filter(v => !hidden[field].has(v)); return shown.length === all.length ? [] : shown; };
   // Service names only narrow the Jira query when they come from the field the data was pulled with.
   const sameSource = $("fSvcField").value === (DATA.meta.service_source || "component");
-  return {projects: pick("Project"), services: sameSource ? pick("Service") : [], types: pick("IssueType"), labels: extraField === "Labels" ? pick("Extra") : []};
+  return {projects: pick("Project"), services: sameSource ? pick("Service") : [], types: pick("IssueType"), labels: XF.includes("Labels") ? pick(xKey(XF.indexOf("Labels"))) : []};
 }
 async function refreshWidget(btn){
   const panel = btn.closest(".panel"), label = btn.textContent;
@@ -2948,10 +3199,18 @@ $("refreshBtn").onclick = () => CONFIG.jira_url && CONFIG.has_token ? refresh(fa
 $("fullBtn").onclick = () => CONFIG.jira_url && CONFIG.has_token ? refresh(false, true) : showTab("settings");
 
 // ---------- tabs & events ----------
+const PAGE_DESC = {
+  overview: "Project health and delivery progress across your Jira workspace", who: "Open work per person, for the current filters",
+  team: "Team size, roles, workload and productivity", timesheet: "Hours logged per person and per ticket",
+  report: "A delivery report ready for stakeholders", plan: "Can the selected work be finished by the date you need?",
+  rtm: "PRD requirements traced to Jira features and user stories", tickets: "Every ticket, searchable and exportable",
+  settings: "Appearance, Jira connection and board setup",
+};
 function showTab(t){
   currentTab = t;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
   $("pageTitle").textContent = document.querySelector(`#tabs button[data-tab=${t}]`).textContent;
+  $("pageDesc").textContent = PAGE_DESC[t] || "";
   ["overview","who","team","timesheet","report","plan","rtm","tickets","settings"].forEach(x=>$("tab-"+x).classList.toggle("hidden", x!==t || (!DATA && x!=="settings")));
   $("filters").classList.toggle("hidden", t==="settings" || !DATA);
   $("drillHint").classList.toggle("hidden", t==="settings" || !DATA);
@@ -2966,12 +3225,24 @@ function setSideMini(on){ document.body.classList.toggle("side-mini", on);
   $("sideToggle").textContent = on ? "»" : "« Collapse menu"; try { localStorage.setItem("ji.sideMini", on ? "1" : ""); } catch(e) {} }
 $("sideToggle").onclick = () => setSideMini(!document.body.classList.contains("side-mini"));
 try { if(localStorage.getItem("ji.sideMini")) setSideMini(true); } catch(e) {}
-Object.values(MULTI).forEach(m => $(m.btn).onclick = e => { e.stopPropagation();
+function bindMultiBtn(m){ $(m.btn).onclick = e => { e.stopPropagation(); e.preventDefault();
   const open = $(m.menu).classList.contains("hidden");
-  Object.values(MULTI).forEach(o => $(o.menu).classList.add("hidden"));
-  if(open) $(m.menu).classList.remove("hidden"); });
+  Object.values(MULTI).forEach(o => $(o.menu)?.classList.add("hidden"));
+  if(open) $(m.menu).classList.remove("hidden"); }; }
+Object.values(MULTI).forEach(bindMultiBtn);
 document.addEventListener("click", e => Object.values(MULTI).forEach(m => {
-  if(!$(m.menu).contains(e.target)) $(m.menu).classList.add("hidden"); }));
+  const menu = $(m.menu); if(menu && !menu.contains(e.target)) menu.classList.add("hidden"); }));
+// Filters accordion: click the header to fold the filters away (remembered); the header always shows what's applied.
+function setFiltersOpen(open){ $("filters").classList.toggle("collapsed", !open); $("filtersHead").setAttribute("aria-expanded", open);
+  try { localStorage.setItem("ji.filtersOpen", open ? "1" : "0"); } catch(e) {} }
+$("filtersHead").onclick = () => setFiltersOpen($("filters").classList.contains("collapsed"));
+try { if(localStorage.getItem("ji.filtersOpen") === "0") setFiltersOpen(false); } catch(e) {}
+function updateFiltersSum(){
+  const active = multiOrder().filter(f => MULTI[f] && multiValues(f).some(v => hidden[f].has(v)))
+    .map(f => $(MULTI[f].btn).textContent);
+  if($("fSprint").value) active.push($("fSprint").selectedOptions[0].textContent);
+  $("filtersSum").textContent = active.length ? `${active.length} applied · ${active.join(" · ")}` : "Nothing filtered — showing everything";
+}
 ["fSprint","fMetric","fGroup","tsFrom","tsTo","tsGroup","fBucket","pPerson","pPeriod","pFrom","pTo","pVelocity","rPeriod","rFrom","rTo","flowPeriod","flowDone",
  "planOrder","planDefaultSp","planSprints","planSprintDays","planStart","planTarget","planNormalHours","planHours","planSat","planSun","planHolidays"].forEach(id=>$(id).onchange=render);
 $("planSearch").oninput = render;
