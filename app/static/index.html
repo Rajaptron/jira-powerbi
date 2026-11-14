@@ -760,7 +760,7 @@ async function load(){
   DATA = r.ok ? await r.json() : null;
   TIMELINES = null; ROLECTX = null;
   // Signed out (no Jira token on this computer) → the sign-in screen, unless they chose to look at demo data.
-  if(!CONFIG.has_token && !demoMode()) return showLogin();
+  if((!CONFIG.has_token || signedOut()) && !demoMode()) return showLogin();
   $("login").classList.add("hidden");
   renderUser();
   $("footNote").textContent = DATA ? `Data source: Jira${DATA.meta.demo ? " (demo data)" : ""} · Last synchronized ${DATA.meta.updated_at || DATA.meta.refreshed_at}` : "";
@@ -776,6 +776,10 @@ async function load(){
 }
 
 // ---------- sign in / sign out ----------
+// "Signed out" in this browser: the sign-in page shows even if a token is still saved (e.g. an older app version
+// that can't remove it). Cleared by a successful sign-in.
+const signedOut = () => { try { return localStorage.getItem("ji.signedOut") === "1"; } catch(e) { return false; } };
+function setSignedOut(on){ try { on ? localStorage.setItem("ji.signedOut", "1") : localStorage.removeItem("ji.signedOut"); } catch(e) {} }
 const demoMode = () => { try { return sessionStorage.getItem("ji.demo") === "1" && (!DATA || !!DATA.meta.demo); } catch(e) { return false; } };
 const initials = n => (n || "?").replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
 function renderUser(){
@@ -785,12 +789,14 @@ function renderUser(){
   if($("logoutLink")) $("logoutLink").onclick = async e => { e.preventDefault();
     // In-page confirm: the browser's own confirm() popup is blocked or hidden in some windows.
     if(!await askConfirm("Log out of Jira Insights?", "Your Jira API token is removed from this computer. Your settings and the data already pulled stay, so signing in again brings you straight back.", "Log out")) return;
+    // Always sign out in this browser (so it lands on the sign-in page whatever happens), and remove the token
+    // from this computer when the app supports it.
+    setSignedOut(true);
     let r; try { r = await fetch("/api/logout", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"}); } catch(err) { r = null; }
-    if(!r || !r.ok) return toast(r && r.status === 404
-      ? "Log out needs the updated app: close it and start it again with start.command, then try once more."
-      : "Couldn't reach the app to log out. Is it still running?");
     try { sessionStorage.removeItem("ji.demo"); } catch(e) {}
-    CONFIG = await api("/api/config"); $("userBox").innerHTML = ""; showLogin(); toast("You're logged out."); };
+    try { CONFIG = await api("/api/config"); } catch(err) {}
+    $("userBox").innerHTML = ""; showLogin();
+    toast(r && r.ok ? "You're logged out." : "You're logged out here. To also remove the saved token, restart the app with start.command (it's an older version) and log out again."); };
   if($("signinLink")) $("signinLink").onclick = e => { e.preventDefault(); try { sessionStorage.removeItem("ji.demo"); } catch(e) {} showLogin(); };
 }
 // A small in-page "are you sure?" box; resolves true / false.
@@ -841,9 +847,12 @@ $("loginForm").onsubmit = async e => {
   const btn = $("lSubmit"), err = $("lErr");
   btn.disabled = true; btn.textContent = "Connecting to Jira…"; err.classList.add("hidden");
   try {
-    const r = await api("/api/login", {jira_url: $("lUrl").value.trim(), email: $("lEmail").value.trim(), token: $("lToken").value, keep: $("lKeep").checked});
+    const resp = await fetch("/api/login", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({jira_url: $("lUrl").value.trim(), email: $("lEmail").value.trim(), token: $("lToken").value, keep: $("lKeep").checked})});
+    if(resp.status === 404){ err.textContent = "This app needs a restart to sign in: close it and start it again with start.command."; err.classList.remove("hidden"); return; }
+    const r = await resp.json();
     if(!r.ok){ err.textContent = r.error; err.classList.remove("hidden"); return; }
-    $("lToken").value = ""; try { sessionStorage.removeItem("ji.demo"); } catch(e) {}
+    $("lToken").value = ""; setSignedOut(false); try { sessionStorage.removeItem("ji.demo"); } catch(e) {}
     await load();
     if(!r.has_projects){ showTab("settings"); toast(`Signed in as ${r.user}. Now tick the projects to pull and click “Save & refresh data”.`); }
     else { showTab(currentTab); toast(`Signed in as ${r.user}.`); }
