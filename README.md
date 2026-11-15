@@ -292,7 +292,7 @@ stories separately, so ticking only *Story* still keeps the defects of those sto
   for Test, to the development bucket, e.g. In Development), with who moved them.
 
 A defect belongs to a story when it's linked to it in Jira (any link type) or created under it. The developer is
-whoever held the story longest in the development bucket. Jira has no built-in severity: if yours is a custom field
+worked out as described under *Who is the developer / QA* below. Jira has no built-in severity: if yours is a custom field
 named like "Severity", the app now always pulls it — click **Full reload** once to bring it in. Click any number or
 bar to see its tickets.
 
@@ -303,12 +303,26 @@ statuses start/end the BA and PM steps). Then open **Team & resources → Produc
 
 | Role | Measures |
 |---|---|
-| QA | stories tested (moved QA → Done by them), defects logged, defects per story, tickets reopened, **leaked defects** (logged after a story they tested was Done) and leakage %, story points tested in the last sprint |
-| Dev | stories delivered (developer = assignee longest in the Development bucket), defects linked to their stories, defects per story point, times reopened, velocity over the last 3 sprints |
+| QA | stories tested (Done stories whose QA is them), defects logged, defects per story, tickets reopened, **leaked defects** (logged after a story they tested was Done) and leakage %, story points tested in the last sprint |
+| Dev | stories delivered (Done stories whose developer is them), defects linked to their stories, defects per story point, times reopened, velocity over the last 3 sprints |
 | BA | stories created per service and per feature, average days Draft → PM Review, stories whose **description changed after development started** |
 | PM | tickets moved PM Review → Ready for Refinement, average / fastest / slowest days, weekly trend, tickets waiting longest |
 
 Defects are tied to stories through Jira issue links (any type, either direction) or the defect's parent.
+
+### Who is the developer / QA of a ticket
+
+Set in **Settings → 4. Team roles**, as status changes (From → To):
+
+- **Developer** = the person who made these changes on the ticket. Default: *Ready for Development → In Development*
+  and *In Development → Peer Review*.
+- **QA** = the person who made these changes. Default: *Ready for Test → In Testing* and *In Testing → (sent back to an
+  earlier status)*, i.e. who picks it up for testing and who reopens it.
+
+Add, change or remove changes with **+ Add status change** / **✕**, then **Save roles**. *(any status)* matches any
+From or To. When several people made them, whoever made the most wins (latest on a tie). When nobody did, the old rule
+is used: developer = assignee longest in the Development bucket, QA = who moved it from the QA bucket to Done. The
+note under the rules shows how many tickets get their developer / QA from the status changes.
 
 **Copy Jira query / Open in Jira** appear on every expanded ticket list (and on *All tickets*). Each gives you a
 `key in (…)` JQL for exactly the tickets on screen, so you can open them in Jira or save them as a Jira filter.

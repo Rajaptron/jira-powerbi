@@ -212,6 +212,13 @@ a{color:var(--accent)}
 .dd-menu label.hidden,.dd-menu .hidden{display:none}
 .dd-menu .only{margin-left:auto;font-size:11px;padding:0 6px;visibility:hidden}
 .dd-menu label:hover .only{visibility:visible}
+.dd-menu label.zero{opacity:.5}
+.mv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px 32px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.mv-h{font-size:14px;margin:0 0 2px}
+.mv-row{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr) 34px;gap:8px;align-items:center;margin:8px 0}
+.mv-row span{text-align:center;color:var(--muted)}
+.mv-row select{height:34px}
+.mv-add{margin:4px 0 0}
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 .form input,.form select,.form textarea{width:100%}
 textarea{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px}
@@ -690,13 +697,22 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
       <div class="tbl-wrap" id="sRoles" style="max-height:360px"></div>
       <div class="form" style="margin-top:14px">
         <label class="f">Defect issue types (comma-separated)<input id="sDefectTypes" placeholder="Bug"><span class="hint" id="sDefectTypesHint"></span></label>
-        <label class="f">Development bucket (developer = assignee here)<select id="sDevBucket"></select></label>
-        <label class="f">QA bucket (QA = who moves it from here to Done)<select id="sQaBucket"></select></label>
+        <label class="f">Development bucket (for "sent back" and the fallback rule)<select id="sDevBucket"></select></label>
+        <label class="f">QA bucket (for "sent back" and the fallback rule)<select id="sQaBucket"></select></label>
         <label class="f">BA step starts at<select id="sBaFrom"></select></label>
         <label class="f">BA step ends when it reaches<select id="sBaTo"></select></label>
         <label class="f">PM step starts at<select id="sPmFrom"></select></label>
         <label class="f">PM step ends when it reaches<select id="sPmTo"></select></label>
       </div>
+      <div class="mv-grid">
+        <div><h3 class="mv-h">Who is the developer of a ticket?</h3>
+          <p class="hint">The person who made these status changes on it.</p>
+          <div id="sDevMoves"></div><button type="button" class="xf-add mv-add" data-mv-add="dev">+ Add status change</button></div>
+        <div><h3 class="mv-h">Who is the QA of a ticket?</h3>
+          <p class="hint">The person who made these status changes on it.</p>
+          <div id="sQaMoves"></div><button type="button" class="xf-add mv-add" data-mv-add="qa">+ Add status change</button></div>
+      </div>
+      <p class="hint" id="sMovesHint"></p>
       <div style="margin-top:12px"><button type="button" class="primary" id="sRolesSave">Save roles</button> <span class="hint" id="sRolesMsg"></span></div>
     </div>
     <button class="primary" id="saveBtn" type="button">Save &amp; refresh data</button>
@@ -1036,10 +1052,14 @@ function registerXF(){
 const multiOrder = () => ["Project", "Service", ...xKeys(), "IssueType", "Assignee"];
 const boardIssues = () => DATA.issues.filter(i => !i.Hidden);  // statuses hidden in Board setup never show
 
+// Ticket type and Assignee always list everyone / every type in the selected projects — narrowing them to the
+// selected services hid people you were looking for. Their counts still show what's in the current selection.
+const FULL_LIST = new Set(["IssueType", "Assignee"]);
 function multiValues(field){
   // Every list after Projects only offers what exists in the projects (and services) currently selected.
   let pool = boardIssues();
   if(field !== "Project") pool = pool.filter(i => !hidden.Project.has(i.Project));
+  if(FULL_LIST.has(field)) return uniq(pool.flatMap(i => valuesOf(i, field)));
   if(field !== "Project" && field !== "Service") pool = pool.filter(i => !hidden.Service.has(i.Service));
   if(field !== "Project" && field !== "Service") { const k = xIndex(field); pool = pool.filter(i => extraOk(i, k >= 0 ? k : XF.length)); }
   return uniq(pool.flatMap(i => valuesOf(i, field)));
@@ -1047,15 +1067,18 @@ function multiValues(field){
 function buildMulti(field){
   const m = MULTI[field], h = hidden[field], values = multiValues(field), menu = $(m.menu);
   const counts = {}; boardIssues().filter(i => field === "Project" || !hidden.Project.has(i.Project))
+    .filter(i => !FULL_LIST.has(field) || (!hidden.Service.has(i.Service) && extraOk(i)))
     .forEach(i => valuesOf(i, field).forEach(v => counts[v] = (counts[v]||0) + 1));
+  // Full lists: ones with tickets in the current selection first, the rest greyed out below.
+  if(FULL_LIST.has(field)) values.sort((a, b) => (!counts[a]) - (!counts[b]) || String(a).localeCompare(String(b)));
   const query = (menu.querySelector(".ms-search")||{}).value || "";
   menu.innerHTML = `<div style="display:flex;gap:6px;margin-bottom:6px"><button type="button" data-act="all">All</button><button type="button" data-act="none">None</button>` +
     (values.length > 5 ? `<input class="ms-search" placeholder="Search ${m.plural}…" style="flex:1;min-width:0">` : "") + `</div>` +
-    values.map(v => `<label data-v="${esc(v.toLowerCase())}"><input type="checkbox" value="${esc(v)}" ${h.has(v)?"":"checked"}> ${esc(v)} <span class="sub">${counts[v]||0}</span><button type="button" class="only" data-only="${esc(v)}">only</button></label>`).join("") +
+    values.map(v => `<label data-v="${esc(String(v).toLowerCase())}"${counts[v] ? "" : ` class="zero" title="No tickets in the current selection"`}><input type="checkbox" value="${esc(v)}" ${h.has(v)?"":"checked"}> ${esc(v)} <span class="sub">${counts[v]||0}</span><button type="button" class="only" data-only="${esc(v)}">only</button></label>`).join("") +
     `<p class="hint ms-empty hidden" style="margin:6px 2px">No match.</p>`;
   const search = menu.querySelector(".ms-search");
   if(search){ search.value = query;
-    const apply = () => { const q = search.value.trim().toLowerCase(); let shown = 0;
+    const apply = () => { const q = search.value.trim().toLowerCase().replace(/\s+/g, " "); let shown = 0;
       menu.querySelectorAll("label[data-v]").forEach(l => { const on = !q || l.dataset.v.includes(q); l.classList.toggle("hidden", !on); shown += on; });
       menu.querySelector(".ms-empty").classList.toggle("hidden", shown > 0); };
     search.oninput = apply; apply(); }
@@ -1457,8 +1480,21 @@ function stageSettings(){
     baTo: st.ba_to || find(/pm review/i) || find(/review/i) || names[1] || "",
     pmFrom: st.pm_from || find(/pm review/i) || find(/review/i) || "",
     pmTo: st.pm_to || find(/refin/i) || "",
+    // Developer / QA = who makes these status changes. Defaults follow the usual workflow names.
+    devMoves: Array.isArray(st.dev_moves) ? st.dev_moves : defaultMoves([[/ready for dev/i, /^in dev/i], [/^in dev/i, /peer|code review/i]], find),
+    qaMoves: Array.isArray(st.qa_moves) ? st.qa_moves : defaultMoves([[/ready (for|to) test/i, /^in test/i], [/^in test/i, MV_BACK]], find),
   };
 }
+const mvText = rules => rules.map(m => `${m.from} → ${m.to}`).join(", ");
+const devRuleText = stg => (stg.devMoves.length ? `the person who made ${mvText(stg.devMoves)}` : "") +
+  `${stg.devMoves.length ? "; if nobody did, " : ""}whoever held it longest in the ${stg.devBucket} bucket`;
+const qaRuleText = stg => (stg.qaMoves.length ? `the person who made ${mvText(stg.qaMoves)}` : "") +
+  `${stg.qaMoves.length ? "; if nobody did, " : ""}whoever moved it from ${stg.qaBucket} to Done`;
+const MV_ANY = "(any status)", MV_BACK = "(sent back to an earlier status)";
+function defaultMoves(pairs, find){
+  return pairs.map(([f, t]) => ({from: find(f), to: t === MV_BACK ? MV_BACK : find(t)})).filter(m => m.from && m.to);
+}
+const moveMatches = (t, m) => (m.from === MV_ANY || t.From === m.from) && (m.to === MV_ANY ? t.To !== t.From : m.to === MV_BACK ? !!t.BackwardMove : t.To === m.to);
 const toDate = s => new Date(s.length > 10 ? s.replace(" ", "T") + ":00Z" : s + "T00:00:00Z");
 const daysBetween = (a, b) => (toDate(b) - toDate(a)) / 864e5;
 
@@ -1486,14 +1522,24 @@ function roleCtx(){
       .forEach(s => tally.set(s.Assignee, (tally.get(s.Assignee) || 0) + s.Days));
     return [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || ""; };
   const devCache = new Map(), qaCache = new Map();
-  // Developer = whoever held the ticket longest while it was in the development bucket.
+  // Who made the configured status changes on a ticket (most of them; the latest wins a tie).
+  const byMoves = (key, rules) => { if(!rules.length) return "";
+    const tally = new Map(), last = new Map();
+    (moves.get(key) || []).forEach(t => { if(t.MovedBy && rules.some(m => moveMatches(t, m))){ tally.set(t.MovedBy, (tally.get(t.MovedBy) || 0) + 1); last.set(t.MovedBy, t.Date); } });
+    return [...tally.entries()].sort((a, b) => b[1] - a[1] || last.get(b[0]).localeCompare(last.get(a[0])))[0]?.[0] || ""; };
+  // Developer = who made the developer status changes (Settings → Team roles, e.g. Ready for Development → In Development,
+  // In Development → Peer Review). Fallback when nobody did: whoever held it longest in the development bucket.
   const devOf = key => { if(!devCache.has(key)){ const i = byKey.get(key);
-    devCache.set(key, mostDays(key, stg.devBucket) || (i && DATA.buckets.indexOf(i.Bucket) >= DATA.buckets.indexOf(stg.devBucket) && i.Assignee !== "Unassigned" ? i.Assignee : "")); }
+    devCache.set(key, byMoves(key, stg.devMoves) || mostDays(key, stg.devBucket)
+      || (i && DATA.buckets.indexOf(i.Bucket) >= DATA.buckets.indexOf(stg.devBucket) && i.Assignee !== "Unassigned" ? i.Assignee : "")); }
     return devCache.get(key); };
-  // QA = whoever moved it from the QA bucket to Done (last time); else whoever held it longest in QA.
-  const qaOf = key => { if(!qaCache.has(key)){ const pass = (moves.get(key) || []).filter(t => t.FromBucket === stg.qaBucket && t.ToBucket === DONE()).pop();
-    qaCache.set(key, pass ? pass.MovedBy : mostDays(key, stg.qaBucket)); }
+  // QA = who made the QA status changes (e.g. Ready for Test → In Testing, In Testing → sent back).
+  // Fallback: whoever moved it from the QA bucket to Done (last time), else whoever held it longest in QA.
+  const qaOf = key => { if(!qaCache.has(key)){ const hit = byMoves(key, stg.qaMoves);
+    const pass = hit ? null : (moves.get(key) || []).filter(t => t.FromBucket === stg.qaBucket && t.ToBucket === DONE()).pop();
+    qaCache.set(key, hit || (pass ? pass.MovedBy : mostDays(key, stg.qaBucket))); }
     return qaCache.get(key); };
+  const roleFrom = key => ({dev: !!byMoves(key, stg.devMoves), qa: !!byMoves(key, stg.qaMoves)});
   // First time a ticket reached `to` after being in `from` ("(created)" = when it was created). Returns {days, at, by}.
   const stage = (key, from, to) => { const i = byKey.get(key), ms = moves.get(key) || []; if(!i || !to) return null;
     let start = null;
@@ -1505,7 +1551,7 @@ function roleCtx(){
   // When did it first enter the development bucket (or later)? Used for "changed after development started".
   const devEntered = key => { const r = DATA.buckets.indexOf(stg.devBucket);
     const t = (moves.get(key) || []).find(t => DATA.buckets.indexOf(t.ToBucket) >= r && t.ToBucket !== t.FromBucket); return t ? t.Date : null; };
-  ROLECTX = {isDefect, byKey, moves, storiesOf, defectsOf, devOf, qaOf, stage, devEntered, stg};
+  ROLECTX = {isDefect, byKey, moves, storiesOf, defectsOf, devOf, qaOf, roleFrom, stage, devEntered, stg};
   return ROLECTX;
 }
 
@@ -1591,7 +1637,7 @@ function renderDefects(){
         <td class="num">${fmt(x.s.StoryPoints)}</td><td class="num"><b>${dl(ds.length, {keys: x.ds}, `Defects on ${x.s.Key}`)}</b></td>
         <td class="num">${cell(ds.filter(d => !isDone(d)), `Open defects on ${x.s.Key}`)}</td><td class="num">${cell(ds.filter(d => d.TimesReopened > 0), `Reopened defects on ${x.s.Key}`)}</td>
         <td>${sev.map(v => `<span class="pill" style="background:${levelColor(v)}">${esc(v)}</span>`).join(" ") || "–"}</td></tr>`; }).join("") + `</tbody></table>` +
-    `<p class="hint">Developer = who held the story longest in the ${esc(C.stg.devBucket)} bucket (Settings → Roles).</p>`
+    `<p class="hint">Developer = ${esc(devRuleText(C.stg))} (Settings → Team roles).</p>`
     : `<p class="hint">No defects are linked to stories in this period. Defects count against a story when they're linked to it in Jira (any link type) or created under it.</p>`;
 
   // Who logged them.
@@ -1705,7 +1751,8 @@ function renderRoleView(role){
         return `<tr><td>${esc(r.p)}</td><td>${st ? `<a href="${esc(st.URL)}" target="_blank" rel="noopener">${esc(r.story)}</a>` : esc(r.story)}</td><td class="wrap">${esc(st ? st.Summary : "Defects not linked to a story")}</td>
           <td class="num">${dl(r.ds.length, {keys: r.ds}, `${r.p} · defects on ${r.story}`)}</td></tr>`; }).join("") + `</tbody></table>` : `<p class="hint">No defects logged in this period.</p>`;
     d2t = "How these are counted";
-    d2 = `<ul class="summary"><li><b>Stories tested</b>: stories this QA moved from <b>${esc(C.stg.qaBucket)}</b> to Done in the period.</li>
+    d2 = `<ul class="summary"><li>A ticket's <b>QA</b> is ${esc(qaRuleText(C.stg))}.</li>
+      <li><b>Stories tested</b>: Done stories in the period whose QA is this person.</li>
       <li><b>Defects logged</b>: ${esc((CONFIG.defect_types || ["Bug"]).join(", "))} tickets they reported in the period.</li>
       <li><b>Reopened</b>: tickets they moved back to an earlier bucket.</li>
       <li><b>Leaked defects</b>: defects linked to a story they tested, logged <i>after</i> that story was Done. Leakage % = leaked ÷ stories tested.</li>
@@ -1728,7 +1775,7 @@ function renderRoleView(role){
         <td class="num">${fmt(r.st.StoryPoints)}</td><td class="num">${dl(r.ds.length, {keys: r.ds}, `Defects on ${r.st.Key}`)}</td><td class="num">${r.st.TimesReopened || 0}</td></tr>`).join("") + `</tbody></table>`
       : `<p class="hint">No defects linked to these developers' stories.</p>`;
     d2t = "How these are counted";
-    d2 = `<ul class="summary"><li>A ticket's <b>developer</b> is whoever it was assigned to longest while in <b>${esc(C.stg.devBucket)}</b>.</li>
+    d2 = `<ul class="summary"><li>A ticket's <b>developer</b> is ${esc(devRuleText(C.stg))}.</li>
       <li><b>Stories delivered</b>: their stories that reached Done in the period. <b>Defects</b>: defects logged in the period that are linked to their stories.</li>
       <li><b>Defects per point</b> = defects ÷ story points delivered. <b>Times reopened</b>: moves back to an earlier bucket on their tickets.</li>
       <li><b>Velocity</b>: average points of their stories finished per sprint, over the last 3 finished sprints.</li></ul>`;
@@ -2765,12 +2812,34 @@ function renderRolesSettings(){
   fill("sBaFrom", ["(created)", ...statuses], st.baFrom); fill("sBaTo", statuses, st.baTo);
   fill("sPmFrom", statuses, st.pmFrom); fill("sPmTo", statuses, st.pmTo);
   fill("sDevBucket", openBuckets(), st.devBucket); fill("sQaBucket", openBuckets(), st.qaBucket);
+  MV_STATUSES = statuses;
+  $("sDevMoves").innerHTML = st.devMoves.map(mvRow).join(""); $("sQaMoves").innerHTML = st.qaMoves.map(mvRow).join("");
+  // How often the rule finds someone, so you can see if the status names fit your workflow.
+  const work = DATA.issues.filter(i => !i.Hidden && !C.isDefect(i) && !CONTAINER.test(i.IssueType) && !SUBTASK.test(i.IssueType));
+  const reachedDev = work.filter(i => DATA.buckets.indexOf(i.Bucket) > DATA.buckets.indexOf(st.devBucket) || (C.moves.get(i.Key) || []).some(t => t.ToBucket === st.devBucket));
+  const reachedQa = work.filter(i => (C.moves.get(i.Key) || []).some(t => t.FromBucket === st.qaBucket || t.ToBucket === st.qaBucket));
+  const nDev = reachedDev.filter(i => C.roleFrom(i.Key).dev).length, nQa = reachedQa.filter(i => C.roleFrom(i.Key).qa).length;
+  $("sMovesHint").innerHTML = `With the saved rules: developer found from these status changes on <b>${nDev} of ${reachedDev.length}</b> tickets that reached development, ` +
+    `QA on <b>${nQa} of ${reachedQa.length}</b> that reached ${esc(st.qaBucket)}. The rest use the fallback (longest assignee in the bucket). ` +
+    `Most and latest wins when several people made these changes.`;
 }
+let MV_STATUSES = [];
+const mvRow = m => { const opt = (vals, cur) => vals.map(v => `<option${v === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
+  return `<div class="mv-row"><select data-mv-from title="From status">${opt([MV_ANY, ...MV_STATUSES], m.from)}</select><span>→</span>` +
+    `<select data-mv-to title="To status">${opt([MV_ANY, MV_BACK, ...MV_STATUSES], m.to)}</select>` +
+    `<button type="button" class="xf-del" data-mv-del title="Remove this status change">✕</button></div>`; };
+const mvCollect = id => [...$(id).querySelectorAll(".mv-row")].map(r => ({from: r.querySelector("[data-mv-from]").value, to: r.querySelector("[data-mv-to]").value}));
+document.addEventListener("click", e => {
+  const add = e.target.closest("[data-mv-add]"), del = e.target.closest("[data-mv-del]");
+  if(add) $(add.dataset.mvAdd === "dev" ? "sDevMoves" : "sQaMoves").insertAdjacentHTML("beforeend", mvRow({from: MV_STATUSES[0] || MV_ANY, to: MV_STATUSES[1] || MV_ANY}));
+  if(del) del.closest(".mv-row").remove();
+});
 $("sRolesSave").onclick = async () => {
   const roles = {}; $("sRoles").querySelectorAll("[data-role-of]").forEach(s => { if(s.value) roles[s.dataset.roleOf] = s.value; });
   await api("/api/config", {roles, defect_types: $("sDefectTypes").value.split(",").map(t => t.trim()).filter(Boolean),
     stages: {ba_from: $("sBaFrom").value, ba_to: $("sBaTo").value, pm_from: $("sPmFrom").value, pm_to: $("sPmTo").value,
-             dev_bucket: $("sDevBucket").value, qa_bucket: $("sQaBucket").value}});
+             dev_bucket: $("sDevBucket").value, qa_bucket: $("sQaBucket").value,
+             dev_moves: mvCollect("sDevMoves"), qa_moves: mvCollect("sQaMoves")}});
   CONFIG = await api("/api/config"); ROLECTX = null; renderRolesSettings();
   $("sRolesMsg").textContent = `Saved — ${Object.keys(roles).length} people have a role. See Team & resources → Productivity report.`;
 };
@@ -3445,7 +3514,9 @@ try { if(localStorage.getItem("ji.sideMini")) setSideMini(true); } catch(e) {}
 function bindMultiBtn(m){ $(m.btn).onclick = e => { e.stopPropagation(); e.preventDefault();
   const open = $(m.menu).classList.contains("hidden");
   Object.values(MULTI).forEach(o => $(o.menu)?.classList.add("hidden"));
-  if(open) $(m.menu).classList.remove("hidden"); }; }
+  if(open){ $(m.menu).classList.remove("hidden");
+    // Put the cursor in the search box so typing filters the list straight away.
+    const q = $(m.menu).querySelector(".ms-search"); if(q){ q.focus(); q.select(); } } }; }
 Object.values(MULTI).forEach(bindMultiBtn);
 document.addEventListener("click", e => Object.values(MULTI).forEach(m => {
   const menu = $(m.menu); if(menu && !menu.contains(e.target)) menu.classList.add("hidden"); }));
