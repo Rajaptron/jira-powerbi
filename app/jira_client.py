@@ -1,8 +1,10 @@
 """Thin Jira REST client (Cloud + Server/Data Center) using only the standard library."""
 import base64
 import gzip
+import http.client
 import json
 import re
+import socket
 import ssl
 import time
 import urllib.error
@@ -36,7 +38,7 @@ class _FollowRedirects(urllib.request.HTTPRedirectHandler):
 
 
 class JiraClient:
-    def __init__(self, base_url, email, token, timeout=60):
+    def __init__(self, base_url, email, token, timeout=120):
         self.base_url = base_url.strip().rstrip("/")
         if not self.base_url.startswith("http"):
             self.base_url = "https://" + self.base_url
@@ -98,10 +100,20 @@ class JiraClient:
                                     "Settings → What to pull, or add e.g. project = KEY to the custom JQL." % jql, 400)
                 raise JiraError("Jira returned HTTP %s for %s: %s" % (e.code, path, detail), e.code)
             except urllib.error.URLError as e:
+                if isinstance(e.reason, (socket.timeout, TimeoutError)):
+                    if attempt < 1:
+                        continue
+                    raise JiraError("Jira took too long to answer %s." % path, "timeout")
                 if attempt < 2:
                     time.sleep(1)
                     continue
                 raise JiraError("Could not reach %s (%s). Check the Jira URL." % (self.base_url, e.reason))
+            except (socket.timeout, TimeoutError, http.client.HTTPException, ConnectionError, ssl.SSLError) as e:
+                # Jira started answering but stalled or dropped the connection mid-way (a slow, heavy page).
+                if attempt < 1:
+                    time.sleep(2)
+                    continue
+                raise JiraError("Jira took too long to answer %s (%s)." % (path, e.__class__.__name__), "timeout")
 
     def get(self, path, params=None):
         return self._request("GET", path, params=params)
@@ -198,16 +210,18 @@ class JiraClient:
 
     def search(self, jql, fields, progress=None, expand=None):
         """Yield every issue matching the JQL, handling both pagination styles."""
-        fetched = 0
+        fetched, size = 0, 100
         if self.is_cloud:
             token = None
             while True:
-                body = {"jql": jql, "fields": fields, "maxResults": 100}
+                body = {"jql": jql, "fields": fields, "maxResults": size}
                 if expand:
                     body["expand"] = expand
                 if token:
                     body["nextPageToken"] = token
-                page = self.post(self.api + "/search/jql", body)
+                page, size = self._page(self.api + "/search/jql", body, size, progress)
+                if page is None:
+                    continue
                 issues = page.get("issues", [])
                 for issue in issues:
                     yield issue
@@ -220,10 +234,12 @@ class JiraClient:
         else:
             start = 0
             while True:
-                body = {"jql": jql, "fields": fields, "startAt": start, "maxResults": 100}
+                body = {"jql": jql, "fields": fields, "startAt": start, "maxResults": size}
                 if expand:
                     body["expand"] = [expand]
-                page = self.post(self.api + "/search", body)
+                page, size = self._page(self.api + "/search", body, size, progress)
+                if page is None:
+                    continue
                 issues = page.get("issues", [])
                 for issue in issues:
                     yield issue
@@ -233,6 +249,21 @@ class JiraClient:
                 start += len(issues)
                 if not issues or start >= page.get("total", 0):
                     return
+
+    def _page(self, path, body, size, progress):
+        """One search page; if Jira is too slow to send it, returns (None, smaller size) so the caller asks again."""
+        try:
+            return self.post(path, body), size
+        except JiraError as e:
+            if e.status != "timeout":
+                raise
+            if size <= 10:
+                raise JiraError("Jira is answering too slowly even 10 tickets at a time, so the pull stopped. Try again "
+                                "in a few minutes, or pull fewer projects / a shorter 'last N days' in Settings.", "timeout")
+            size = max(size // 2, 10)
+            if progress:
+                progress("Jira is slow; asking for %d tickets at a time instead..." % size)
+            return None, size
 
     def all_worklogs(self, issue_key):
         out, start = [], 0

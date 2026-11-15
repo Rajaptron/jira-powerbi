@@ -182,7 +182,9 @@ def fetch(cfg, progress=lambda msg: None):
 
     want = ["summary", "status", "assignee", "reporter", "issuetype", "priority", "components",
             "labels", "project", "created", "updated", "resolutiondate", "parent", "timespent",
-            "timeoriginalestimate", "timeestimate", "worklog", "issuelinks", "creator", "description", "fixVersions"] + sp_ids
+            "timeoriginalestimate", "timeestimate", "issuelinks", "creator", "description", "fixVersions"] + sp_ids
+    if cfg.get("include_worklogs", True) and cfg.get("worklog_source") != "tempo":
+        want.append("worklog")  # heavy (up to 20 entries per ticket): only when time comes from Jira itself
     if sprint_id:
         want.append(sprint_id)
     if custom_id:
