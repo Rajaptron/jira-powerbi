@@ -16,7 +16,7 @@ import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import board, demo, pipeline, prd
+from . import board, demo, pipeline, prd, tempo
 from .excel_export import write_workbook
 from .rtm_export import rtm_workbook
 from .jira_client import JiraClient, JiraError
@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
     "include_worklogs": True, "worklog_days": 90, "include_history": True,
     "buckets": None, "status_buckets": {}, "hidden_statuses": [], "status_order": [], "planning": {},
     "roles": {}, "defect_types": ["Bug"], "stages": {},
+    "worklog_source": "jira", "tempo_token": "",  # where time is logged: Jira's own worklog, or Tempo Timesheets
     "display_name": "", "keep_signed_in": True,  # who signed in, and whether the token survives an app restart
 }
 
@@ -87,7 +88,7 @@ def run_refresh(use_demo=False, scope=None, full=False):
                                  "Click Full reload first so every ticket uses the new setting.")
             cfg["jql"] = pipeline.scoped_jql(cfg, old, scope)
             data, changed = pipeline.merge(old, pipeline.fetch(cfg, progress))
-            data = board.apply(data, cfg)
+            data = board.apply(tempo.apply(data, cfg, progress), cfg)
             save_data(data)
             state["changed"] = changed
             progress("Updated %d changed ticket%s from Jira." % (changed, "" if changed == 1 else "s"))
@@ -100,6 +101,7 @@ def run_refresh(use_demo=False, scope=None, full=False):
             quick = pipeline.quick_refresh(cfg, json.loads(DATA_JSON.read_text()), progress)
             if quick:
                 data, changed, removed = quick
+                data = tempo.apply(data, cfg, progress)
                 progress("Writing Excel workbook for Power BI...")
                 save_data(data)
                 progress("Quick refresh done in %ds: %d changed ticket%s%s · %d tickets in total." % (
@@ -107,7 +109,7 @@ def run_refresh(use_demo=False, scope=None, full=False):
                     ", %d removed" % removed if removed else "", len(data["issues"])))
                 state["error"] = ""
                 return
-        data = demo.generate(cfg=cfg) if use_demo else pipeline.fetch(cfg, progress)
+        data = demo.generate(cfg=cfg) if use_demo else tempo.apply(pipeline.fetch(cfg, progress), cfg, progress)
         progress("Writing Excel workbook for Power BI...")
         save_data(data)
         progress("Full refresh done in %ds: %d tickets." % (time.time() - started, len(data["issues"])))
@@ -177,6 +179,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/config":
             cfg = load_config()
             cfg["has_token"] = bool(cfg.pop("token"))
+            cfg["has_tempo_token"] = bool(cfg.pop("tempo_token", ""))
             return self._send(200, cfg)
         if path == "/api/board-presets":
             return self._send(200, {"presets": board.PRESETS, "default": board.DEFAULT_PRESET})
@@ -207,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/config":
             cfg = load_config()
             for k in DEFAULT_CONFIG:
-                if k in body and not (k == "token" and not body[k]):  # blank token = keep existing
+                if k in body and not (k in ("token", "tempo_token") and not body[k]):  # blank token = keep existing
                     cfg[k] = body[k]
             save_config(cfg)
             rederived = False
@@ -263,8 +266,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/logout":
             # Log out = forget the token on this computer; settings and pulled data stay for the next sign-in.
             cfg = load_config()
-            cfg["token"] = ""
+            cfg["token"] = cfg["tempo_token"] = ""
             save_config(cfg)
+            return self._send(200, {"ok": True})
+        if path == "/api/tempo-test":
+            cfg = load_config()
+            if body.get("tempo_token"):
+                cfg["tempo_token"] = body["tempo_token"]
+            try:
+                tempo.test(cfg)
+            except (JiraError, ValueError) as e:
+                return self._send(200, {"ok": False, "error": str(e)})
+            save_config(cfg)  # only a token Tempo accepted is kept
             return self._send(200, {"ok": True})
         if path == "/api/rtm/upload":
             # A PRD for one service: pull out its requirements; keep links for requirement ids that survive.
@@ -373,7 +386,7 @@ def main():
     url = "http://127.0.0.1:%d" % args.port
     cfg = load_config()
     if cfg.get("token") and not cfg.get("keep_signed_in", True):
-        cfg["token"] = ""  # "Keep me signed in" was off: sign in again after a restart
+        cfg["token"] = cfg["tempo_token"] = ""  # "Keep me signed in" was off: sign in again after a restart
         save_config(cfg)
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # local machine only

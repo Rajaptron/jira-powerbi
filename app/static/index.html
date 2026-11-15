@@ -671,6 +671,12 @@ tr.rtm-feature td{background:var(--chip);font-weight:650}
           <div id="sSourceWarn" class="msg hidden" style="margin-top:8px"></div></label>
         <label class="f">Include closed tickets updated in the last N days<input id="sDays" type="number" min="0"></label>
         <label class="f">Timesheet: worklogs from the last N days<input id="sWlDays" type="number" min="1"></label>
+        <div><label class="f">Time is logged in<select id="sWlSource">
+            <option value="jira">Jira worklog (Log work on the ticket)</option><option value="tempo">Tempo Timesheets</option></select></label>
+          <div id="sTempoBox" class="hidden" style="margin-top:8px">
+            <label class="f" id="sTempoTokenRow">Tempo API token<input id="sTempoToken" type="password" placeholder="paste Tempo token" autocomplete="off"></label>
+            <div style="margin-top:6px"><button type="button" id="tempoTestBtn">Test Tempo token</button> <span id="sTempoMsg" class="hint"></span></div>
+            <div id="sTempoHint" class="hint" style="margin-top:4px"></div></div></div>
       </div>
       <label class="f" style="margin-top:14px">Advanced: extra JQL — narrows the ticked projects (replaces the "closed in last N days" rule)<input id="sJql" placeholder='sprint in openSprints() AND issuetype in (Story, Bug)'></label>
     </div>
@@ -1851,7 +1857,7 @@ function renderTimesheet(issues){
   const {logs, cols, col} = tsData(issues);
   const from = $("tsFrom").value, to = $("tsTo").value, byWeek = $("tsGroup").value==="week";
   const span = c => byWeek ? [c, addDays(c, 6)] : [c, c];
-  $("tsHint").textContent = `Worklogs are pulled for the last ${DATA.meta.worklog_days} days (change in Settings). Showing ${logs.length} entries for the selected services.`;
+  $("tsHint").textContent = `${DATA.meta.worklog_source==="tempo"?"Tempo worklogs":"Worklogs"} are pulled for the last ${DATA.meta.worklog_days} days (change in Settings). Showing ${logs.length} entries for the selected services.`;
   const people = uniq(logs.map(w=>w.Author)), grid = new Map();
   logs.forEach(w=>{ const k=w.Author+"|"+col(w); grid.set(k,(grid.get(k)||0)+w.Hours); });
   const max = Math.max(1,...grid.values());
@@ -2582,6 +2588,7 @@ function fillSettings(){
   showSourceWarning();
   renderRolesSettings();
   $("sDays").value = CONFIG.updated_within_days ?? 180; $("sWlDays").value = CONFIG.worklog_days ?? 90; $("sJql").value = CONFIG.jql || "";
+  $("sWlSource").value = CONFIG.worklog_source === "tempo" ? "tempo" : "jira"; $("sTempoToken").value = ""; showTempo();
   initBoard();
 }
 function collectSettings(){
@@ -2591,8 +2598,29 @@ function collectSettings(){
   return { jira_url:$("sUrl").value.trim(), email:$("sEmail").value.trim(), token:$("sToken").value.trim(),
     projects: uniq([...chips, ...typed]), jql:$("sJql").value.trim(),
     service_source: src==="field" ? "field:"+$("sServiceField").value.trim() : src,
-    updated_within_days: +$("sDays").value||0, worklog_days: +$("sWlDays").value||90 };
+    updated_within_days: +$("sDays").value||0, worklog_days: +$("sWlDays").value||90,
+    worklog_source: $("sWlSource").value, tempo_token: $("sTempoToken").value.trim() };
 }
+// Tempo: Jira Cloud needs Tempo's own API token; on Jira Server/Data Center the Tempo plugin uses the Jira login.
+const jiraIsCloud = () => /\.atlassian\.net/i.test($("sUrl").value || CONFIG.jira_url || "");
+function showTempo(){
+  const on = $("sWlSource").value === "tempo", cloud = jiraIsCloud();
+  $("sTempoBox").classList.toggle("hidden", !on);
+  $("sTempoTokenRow").classList.toggle("hidden", !cloud);
+  $("tempoTestBtn").parentElement.classList.toggle("hidden", !cloud);
+  $("sTempoToken").placeholder = CONFIG.has_tempo_token ? "•••••• saved (leave blank to keep)" : "paste Tempo token";
+  $("sTempoHint").innerHTML = cloud
+    ? `In Jira open <b>Apps → Tempo → Settings → API integration → New token</b> (read access to worklogs is enough). The token is stored only on this computer and sent only to api.tempo.io. Hours then come from Tempo on the next refresh.`
+    : `Your Jira is Server/Data Center: Tempo is read through Jira with your normal login, no extra token needed.`;
+}
+$("sWlSource").onchange = showTempo;
+$("tempoTestBtn").onclick = async () => {
+  $("sTempoMsg").textContent = "Testing…";
+  const r = await api("/api/tempo-test", {tempo_token: $("sTempoToken").value.trim()});
+  if(!r.ok){ $("sTempoMsg").innerHTML = `<span style="color:var(--warn)">${esc(r.error)}</span>`; return; }
+  CONFIG.has_tempo_token = true; $("sTempoToken").value = ""; showTempo();
+  $("sTempoMsg").textContent = "Tempo token works. Click Save & refresh data to bring in Tempo hours.";
+};
 // Project list + custom fields come from Jira; loaded once per visit (and again after "Save & test connection").
 let jiraLists = null;
 function showJiraLists(r){

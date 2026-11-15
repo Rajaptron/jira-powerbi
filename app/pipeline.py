@@ -209,7 +209,8 @@ def fetch(cfg, progress=lambda msg: None):
         except JiraError:
             extra = {}
     progress("Running JQL: %s" % jql)
-    include_worklogs = cfg.get("include_worklogs", True)
+    # Time logged in Tempo is added afterwards (tempo.apply), so Jira's own worklog is skipped then.
+    include_worklogs = cfg.get("include_worklogs", True) and cfg.get("worklog_source") != "tempo"
     worklog_cutoff = (dt.date.today() - dt.timedelta(days=int(cfg.get("worklog_days") or 90))).isoformat()
     today = dt.date.today()
 
@@ -250,6 +251,7 @@ def fetch(cfg, progress=lambda msg: None):
             "URL": "%s/browse/%s" % (client.base_url, raw["key"]),
             "Summary": f.get("summary", ""),
             "Project": _name(f.get("project")),
+            "ProjectId": str((f.get("project") or {}).get("id", "")),
             "Service": service,
             "IssueType": _name(f.get("issuetype")),
             "Status": status.get("name", ""),
@@ -507,6 +509,8 @@ def fingerprint(cfg):
     """Settings that change *which* data is pulled; if any of these change, a quick refresh isn't enough."""
     keys = ("jira_url", "email", "service_source", "include_history", "include_worklogs", "worklog_days")
     sig = {k: cfg.get(k) for k in keys}
+    if cfg.get("worklog_source") == "tempo":  # only when set, so older data doesn't need a full reload
+        sig["worklog_source"] = "tempo"
     sig["jql"] = cfg["jql"].strip() if cfg.get("jql", "").strip() else window_clause(cfg)
     return hashlib.sha1(json.dumps(sig, sort_keys=True).encode()).hexdigest()[:12]
 

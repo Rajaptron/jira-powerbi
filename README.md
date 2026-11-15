@@ -192,6 +192,22 @@ enter a custom JQL.
 
 From a terminal: `./start.command --refresh` (quick) or `./start.command --refresh --full`.
 
+## Time logged in Tempo
+
+If your team logs time in **Tempo Timesheets** instead of Jira's own *Log work*, set Settings → 2. What to pull →
+**Time is logged in** to **Tempo Timesheets**, then click **Save & refresh data**.
+
+- **Jira Cloud** (`…atlassian.net`): Tempo needs its own token. In Jira open **Apps → Tempo → Settings → API
+  integration → New token**, paste it in **Tempo API token** and click **Test Tempo token**. The token is kept only on
+  this computer (`config.json`), sent only to `api.tempo.io`, never shown back in the browser, and removed on Log out
+  (paste it again after signing back in).
+- **Jira Server/Data Center**: nothing extra; Tempo is read through Jira with your normal login.
+- Every refresh (quick, full or widget) re-reads Tempo for the timesheet window (last N days) for all pulled tickets,
+  so hours logged in Tempo show up even when the ticket itself didn't change. Names come from Jira.
+- Timesheet, Team hours, People and the `Worklogs` sheet in Excel then use Tempo hours. A ticket's *Hours logged*
+  shows the Tempo hours within the window when Jira's own time on it is empty.
+- Switching between Jira and Tempo does one full reload automatically.
+
 ## Refreshing a single widget
 
 Every chart and table has a **↻ Refresh** button. It asks Jira only for tickets that are in that widget's current
@@ -343,7 +359,8 @@ Use these to start conversations, not to rank people: story points, ticket size 
 - Tickets with several components/labels are counted under the **first** one, so totals never double-count.
 - Story points are detected automatically ("Story Points" / "Story point estimate" field).
 - Sprint shows the active sprint if the ticket is in one, otherwise the most recent.
-- Timesheets come from Jira worklogs. Tempo timesheets stored outside Jira worklogs aren't included.
+- Timesheets come from Jira worklogs, or from Tempo when Settings → What to pull → **Time is logged in** is set to
+  Tempo Timesheets (see *Time logged in Tempo* above).
 - Large projects: the first refresh of ~10k tickets takes a few minutes (status history makes it slower; turn it off by
   setting `"include_history": false` in `config.json`).
 
@@ -354,6 +371,7 @@ start.command / start.bat   launchers
 app/server.py               local web server + `--refresh` CLI
 app/pipeline.py             Jira fetch, status → bucket mapping, people roll-up
 app/jira_client.py          Jira REST client (Cloud + Server/DC)
+app/tempo.py                worklogs from Tempo Timesheets (optional)
 app/excel_export.py         Power BI workbook writer
 app/rtm_export.py           traceability Excel report
 app/static/index.html       dashboard
