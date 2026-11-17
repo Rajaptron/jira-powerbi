@@ -487,9 +487,10 @@ def _sheets(filename, data):
 
 def read_rtm(filename, data, known_ids):
     """Finds the sheet with a requirement-id column and a Jira-ticket column and returns
-    {id: {"keys": [...], "assessment": "...", "note": "..."}} plus what couldn't be matched."""
+    {id: {"keys": [...], "assessment": "...", "note": "..."}} plus what couldn't be matched; "main" lists the ids
+    the main sheet itself holds."""
     known = {k.upper(): k for k in known_ids}
-    best = None
+    sheets = []
     for title, rows in _sheets(filename, data):
         for h, head in enumerate(rows[:6]):
             low = [c.lower().strip() for c in head]
@@ -514,20 +515,30 @@ def read_rtm(filename, data, known_ids):
             found = {}
             for row in rows[h + 1:]:
                 cell = lambda n: row[n].strip() if n is not None and n < len(row) else ""
-                rid = re.sub(r"\s+", "-", cell(id_col).upper())
-                if not rid:
-                    continue
-                keys = list(dict.fromkeys(KEY_RE.findall(cell(keys_col))))
-                found[rid] = {"keys": keys, "assessment": assessment_of(cell(status_col)), "note": cell(note_col)}
+                # One cell can name several requirements ("FR-DCS-VAL-007 / AC-DCS-006").
+                text = cell(id_col).upper()
+                rids = [k for k in re.findall(r"[A-Z0-9][A-Z0-9.-]*[A-Z0-9]", text) if k in known] or [re.sub(r"\s+", "-", text)]
+                # "(Parent: NDRC-978, …)" names the story's parent, not a story.
+                keys = list(dict.fromkeys(KEY_RE.findall(re.sub(r"parent\s*:\s*\S+", "", cell(keys_col), flags=re.I))))
+                for rid in filter(None, rids):
+                    if rid not in found or not found[rid]["keys"]:
+                        found[rid] = {"keys": keys, "assessment": assessment_of(cell(status_col)), "note": cell(note_col)}
             hits = sum(1 for r in found if r in known)
             # Prefer the sheet that also carries a coverage verdict and gap notes (the main RTM sheet).
             score = hits + (5 if status_col is not None else 0) + (2 if note_col is not None else 0)
-            if hits and (best is None or score > best[0]):
-                best = (score, title, found)
+            if hits:
+                sheets.append((score, title, found))
+    best = max(sheets, key=lambda x: x[0]) if sheets else None
     if not best:
         raise ValueError("Couldn't find a traceability sheet whose requirement ids match this PRD. The sheet needs a "
                          "requirement-id column (e.g. 'PRD Req ID') and a column with the Jira story keys.")
     hits, title, found = best
+    # Requirements the main sheet leaves out but another sheet maps to stories (e.g. a drift sheet's "FR-x / AC-y" rows).
+    main, found = set(found), dict(found)
+    for _, _, other in sheets:
+        for r, v in other.items():
+            if r in known and r not in found and v["keys"]:
+                found[r] = v
     rows = {known[r]: v for r, v in found.items() if r in known}
-    return {"sheet": title, "rows": rows, "unknown": sorted(r for r in found if r not in known),
+    return {"sheet": title, "rows": rows, "main": sorted(known[r] for r in main if r in known), "unknown": sorted(r for r in found if r not in known),
             "not_in_file": sorted(v for k, v in known.items() if k not in found)}

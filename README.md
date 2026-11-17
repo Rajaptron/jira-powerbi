@@ -273,7 +273,10 @@ The **Traceability** tab traces PRD requirements to Jira tickets, one view per s
    status (Fully / Partially covered, Critical gap, Design drift, External dependency) and gap notes are loaded as
    each requirement's stories, status and comment. Requirements in the PRD but missing from your sheet are flagged.
    When several columns hold Jira keys (feature link, parent, story status…), the one with the mapped user stories is
-   used. Requirement types the sheet covers (e.g. its NFR rows) are switched on under **Trace** automatically.
+   used. Requirement types the sheet covers (e.g. its NFR rows) are switched on under **Trace** automatically, and
+   so are the PRD's acceptance criteria (AC-…), so any the matrix leaves out show as not covered. A cell naming two
+   requirements ("FR-DCS-VAL-007 / AC-DCS-006") links both, and requirements missing from the main sheet but mapped
+   to stories on another sheet (e.g. "PRD Drift") are picked up from there. "(Parent: NDRC-978)" keys are ignored.
 5. **PRDs with requirement tables in PDF** (an ID column like `CIS-ROM-01` or `NFR AVAIL 001` next to "Requirement +
    Explanation") are read row by row, with the title kept apart from the explanation, also when the table is indented
    or shifts at a page break. Functional, non-functional, acceptance-criteria and business-rule (BR-…) tables are told
