@@ -3008,7 +3008,7 @@ function rtmRollup(keys){
   const tested = uniq(items.filter(isDone).map(i => C.qaOf(i.Key)).filter(Boolean)).join(", ");
   return {status, items, defects, open: defects.filter(d => !isDone(d)), tested};
 }
-const RTM_KINDS = {FR: "Functional", NFR: "Non-functional", AC: "Acceptance criteria"};
+const RTM_KINDS = {FR: "Functional", NFR: "Non-functional", AC: "Acceptance criteria", BR: "Business rules"};
 const rtmKinds = doc => doc.kinds || ["FR"];
 function rtmEvaluate(service){
   const saved = RTM[service]; if(!saved) return null;

@@ -316,6 +316,9 @@ class Handler(BaseHTTPRequestHandler):
                     rejected[rid] = [k for k in rejected.get(rid, []) if k not in row["keys"]]
                 if row["assessment"] or row["note"]:
                     assess[rid] = {"status": row["assessment"], "note": row["note"]}
+            # Trace the requirement types this matrix covers (e.g. its NFR rows), not only functional ones.
+            kinds = {r.get("kind") or "FR" for r in doc["requirements"] if r["id"] in found["rows"]}
+            doc["kinds"] = [k for k in ("FR", "NFR", "AC", "BR") if k in set(doc.get("kinds") or ["FR"]) | kinds]
             doc["rtm_file"] = "%s (sheet %s) · imported %s" % (body.get("filename", ""), found["sheet"], time.strftime("%Y-%m-%d %H:%M"))
             save_rtm(rtm)
             return self._send(200, {"ok": True, "rtm": doc, "sheet": found["sheet"], "matched": len(found["rows"]),

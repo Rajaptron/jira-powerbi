@@ -49,11 +49,11 @@ def blocks_from_docx(data):
     return out
 
 
-def blocks_from_text(text, markdown=True):
+def blocks_from_text(text, markdown=True, title=True):
     out, in_table = [], False
     plain = not any(l.lstrip().startswith("#") for l in text.splitlines())  # PDF / plain text: no markdown headings
     numbered_heading = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z][^.!?:;]{1,70})$")
-    first = True
+    first = title  # the first line is the document title (not for text between tables)
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
@@ -214,7 +214,7 @@ def blocks_from_confluence(storage):
 # A requirement table in a PDF: an "ID" column (ids often wrapped over 2-3 lines, e.g. "CIS-" / "ROM-01" or
 # "NFR" / "AVAIL" / "001") next to the requirement, whose first line is a title when the column says
 # "Requirement + Explanation".
-TABLE_HEAD = re.compile(r"^\s{0,4}ID\s{2,}(\S.*)$")
+TABLE_HEAD = re.compile(r"^(\s{0,16})ID\s{2,}(\S.*)$")
 ROW = re.compile(r"^\s{0,4}(\S+(?: \S+)*?)(?:\s{2,}(\S.*))?$")
 HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z][^.!?:;]{1,70})$")
 
@@ -222,13 +222,15 @@ HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z][^.!?:;]{1,70})$")
 def blocks_from_id_tables(layout):
     lines = layout.splitlines()
     out, rows = [], 0
-    in_table, titled = False, False
+    in_table, titled, base = False, False, 0  # base: how far the table's ID column is indented
+    extra_cols = False  # the table has a third column after the requirement text
+    text_col = 0        # where the requirement text column starts (a table continued on the next page may shift)
     cur = None          # the row being read: {"frags": [...], "right": [...]}
     pending = []        # narrative lines between tables
 
     def flush_text():
         if pending:
-            out.extend(b for b in blocks_from_text("\n".join(pending), markdown=False) if b[0] == "heading")
+            out.extend(b for b in blocks_from_text("\n".join(pending), markdown=False, title=not out) if b[0] == "heading")
             pending.clear()
 
     def finish():
@@ -249,7 +251,9 @@ def blocks_from_id_tables(layout):
         head = TABLE_HEAD.match(line)
         if head:
             finish(); flush_text()
-            in_table, titled = True, bool(re.search(r"explanation|description|detail|rationale", head.group(1), re.I))
+            in_table, titled = True, bool(re.search(r"explanation|description|detail|rationale", head.group(2), re.I))
+            base, text_col = len(head.group(1)), 0
+            extra_cols = len(re.split(r"\s{2,}", head.group(2).strip())) > 1  # ID | text | e.g. area
             continue
         stripped = line.strip()
         indent = len(line) - len(line.lstrip())
@@ -259,7 +263,7 @@ def blocks_from_id_tables(layout):
             out.append(("heading", h.group(1).count(".") + 2, h.group(2).strip()))
             continue
         if in_table:
-            m = ROW.match(line) if indent <= 4 else None
+            m = ROW.match(stripped) if indent <= base + 4 or (text_col and indent < text_col - 8) else None
             frag = m.group(1) if m else ""
             if m and _id_fragment(frag):
                 complete = cur is not None and any(re.search(r"\d", f) for f in cur["frags"])
@@ -267,9 +271,16 @@ def blocks_from_id_tables(layout):
                     finish()
                     cur = {"frags": [], "right": []}
                 cur["frags"].append(frag)
-                cur["right"].append((m.group(2) or "").strip())
+                right = (m.group(2) or "").strip()
+                cur["right"].append(re.split(r"\s{3,}", right)[0] if extra_cols else right)
+                if m.group(2):
+                    text_col = indent + stripped.index(m.group(2))
                 continue
-            if cur is not None and indent > 4:
+            if cur is not None and indent > base + 4:
+                if extra_cols:
+                    if text_col and indent > text_col + 12:
+                        continue  # only the third column (e.g. "Capability Areas") on this line
+                    stripped = re.split(r"\s{3,}", stripped)[0]
                 cur["right"].append(stripped)  # continuation of the requirement text
                 continue
             finish()
@@ -281,7 +292,7 @@ def blocks_from_id_tables(layout):
 
 def _id_fragment(frag):
     """A piece of a requirement id: CIS- / ROM-01 / CIS-OA- / 09 / NFR / AVAIL / SCALE 001 / AC / 001."""
-    return len(frag) <= 16 and bool(re.fullmatch(r"(?:[A-Z]{2,8}-?)(?:[ -]?[A-Z]{2,8}-?)*(?:[ -]?\d{1,4}(?:\.\d+)*)?|\d{1,4}(?:\.\d+)*|[A-Z]{2,8}-\d{1,4}", frag))
+    return len(frag) <= 24 and bool(re.fullmatch(r"(?:[A-Z]{2,8}-?)(?:[ -]?[A-Z]{2,8}-?)*(?:[ -]?\d{1,4}(?:\.\d+)*)?|\d{1,4}(?:\.\d+)*|[A-Z]{2,8}-\d{1,4}", frag))
 
 
 def _join_id(frags):
@@ -413,7 +424,9 @@ def extract(blocks):
 
 
 def _kind(rid, section):
-    """FR (functional), NFR (non-functional) or AC (acceptance criterion)."""
+    """FR (functional), NFR (non-functional), AC (acceptance criterion) or BR (business rule)."""
+    if re.match(r"BR\b|BR-", rid.upper()) or re.search(r"business rules?", section, re.I):
+        return "BR"
     if rid.upper().startswith("NFR") or re.search(r"non[- ]?functional|quality attribute", section, re.I):
         return "NFR"
     if re.match(r"AC\b|AC-", rid.upper()) or re.search(r"acceptance", section, re.I):
@@ -484,9 +497,18 @@ def read_rtm(filename, data, known_ids):
             id_col = find(r"req.*\bid\b|requirement id|^id$|^req(uirement)? ?#|^ref")
             if id_col is None:
                 continue
-            keys_col = find(r"jira|stor(y|ies)|ticket|issue", (id_col,))
-            if keys_col is None:
+            # The story column: of the columns naming Jira / stories / tickets, the one holding the most ticket keys —
+            # but not a parent / feature-link / status column when a real story column exists.
+            body = rows[h + 1:]
+            def keys_score(n):
+                hits = sum(len(KEY_RE.findall(r[n])) for r in body if n < len(r))
+                side = re.search(r"parent|feature|epic|status|link", low[n])
+                return (0 if side else 1, hits)
+            cands = [n for n, c in enumerate(low) if n != id_col and re.search(r"jira|stor(y|ies)|ticket|issue", c)]
+            cands = [n for n in cands if keys_score(n)[1]]
+            if not cands:
                 continue
+            keys_col = max(cands, key=keys_score)
             status_col = find(r"coverage|status|assessment|verdict", (id_col, keys_col))
             note_col = find(r"gap|drift|comment|note|remark|analysis", (id_col, keys_col, status_col))
             found = {}
